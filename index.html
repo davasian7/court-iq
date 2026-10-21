@@ -536,7 +536,10 @@
     if (wanted === "WTA 500") return has("wta") && has("500");
     if (wanted === "WTA 250") return has("wta") && has("250");
     if (wanted === "WTA 125" || wanted === "125") return has("125");
-    if (/^W(15|35|50|75|100)$/.test(wanted)) return has(wanted);
+    if (/^W(15|35|50|75|100)$/.test(wanted)) {
+      const levelNumber = wanted.slice(1);
+      return new RegExp("\\bw[\\s-]?" + levelNumber + "\\b", "i").test(value);
+    }
     if (wanted === "WTA") return has("wta");
     return has(wanted);
   }
