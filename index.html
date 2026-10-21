@@ -374,6 +374,7 @@
   <section>
     <div class="section-head">
       <h2 id="resultsTitle">Toernooien <span id="resultsCount" class="results-count" aria-live="polite">(0)</span></h2>
+      <button id="viewMode" class="secondary">Groepeer locaties</button>
       <button id="showSaved" class="secondary">Opgeslagen</button>
     </div>
     <div id="results"></div>
@@ -388,6 +389,7 @@
 
   let tournaments = [];
   let showSavedOnly = false;
+  let viewMode = "list";
   let visibleCount = 30;
   let savedIds = loadSavedIds();
 
@@ -636,11 +638,45 @@
     return node;
   }
 
+  function locationGroupName(item) {
+    // Remove trailing edition numbers, e.g. "Monastir 1", "Monastir 2".
+    // Keep the original tournament names in the individual cards.
+    const name = String(item.name || "Naam niet beschikbaar").trim();
+    return name
+      .replace(/\\s*[-–—]?\\s*(?:no\\.?\\s*)?\\d+\\s*$/i, "")
+      .trim() || name;
+  }
+
+  function groupedForDisplay(list) {
+    const groups = new Map();
+    list.forEach(item => {
+      const key = locationGroupName(item).toLocaleLowerCase();
+      if (!groups.has(key)) groups.set(key, { name: locationGroupName(item), items: [] });
+      groups.get(key).items.push(item);
+    });
+    return [...groups.values()]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(group => ({
+        ...group,
+        items: group.items.sort((a, b) => {
+          const da = dateValue(a), db = dateValue(b);
+          if (!da && !db) return String(a.name).localeCompare(String(b.name));
+          if (!da) return 1;
+          if (!db) return -1;
+          return da - db;
+        })
+      }));
+  }
+
   function render() {
     const list = filtered();
     $("results").replaceChildren();
     $("resultsTitle").childNodes[0].textContent = showSavedOnly ? "Opgeslagen toernooien " : "Toernooien ";
-    $("resultsCount").textContent = `(${list.length} resultaten)`;
+    const groups = viewMode === "grouped" ? groupedForDisplay(list) : null;
+    $("resultsCount").textContent = viewMode === "grouped"
+      ? `(${list.length} toernooien · ${groups.length} groepen)`
+      : `(${list.length} resultaten)`;
+    $("viewMode").textContent = viewMode === "list" ? "Groepeer locaties" : "Toon volledige lijst";
     $("totalCount").textContent = tournaments.length;
     $("savedCount").textContent = savedIds.length;
 
@@ -659,7 +695,20 @@
       ));
     }
 
-    list.slice(0, visibleCount).forEach(item => {
+    const displayItems = viewMode === "list"
+      ? list.slice(0, visibleCount).map(item => ({ item, groupName: null }))
+      : groups.flatMap(group => group.items.map(item => ({ item, groupName: group.name })))
+          .slice(0, visibleCount);
+
+    let lastGroupName = null;
+    displayItems.forEach(({ item, groupName }) => {
+      if (viewMode === "grouped" && groupName !== lastGroupName) {
+        const heading = element("h3", "", groupName);
+        heading.style.margin = "18px 0 8px";
+        heading.style.color = "var(--green)";
+        $("results").appendChild(heading);
+        lastGroupName = groupName;
+      }
       const card = element("article", "tournament");
       const top = element("div", "tournament-top");
       const left = element("div");
@@ -714,6 +763,7 @@
     });
 
     $("loadMore").classList.toggle("hidden", list.length <= visibleCount);
+    $("loadMore").textContent = viewMode === "grouped" ? "Toon meer toernooien" : "Toon meer";
   }
 
   async function refresh(manual = false) {
@@ -782,6 +832,12 @@
   $("playerName").addEventListener("change", lookupPlayer);
   $("saveProfile").addEventListener("click", saveProfile);
   $("refresh").addEventListener("click", () => refresh(true));
+  $("viewMode").addEventListener("click", () => {
+    viewMode = viewMode === "list" ? "grouped" : "list";
+    visibleCount = 30;
+    render();
+  });
+
   $("showSaved").addEventListener("click", () => {
     showSavedOnly = !showSavedOnly;
     $("showSaved").textContent = showSavedOnly ? "Alle toernooien" : "Opgeslagen";
