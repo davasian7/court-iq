@@ -243,7 +243,8 @@
     <p class="muted">Stel je voorkeuren in om passende toernooien te herkennen.</p>
 
     <label for="playerName">Naam speelster</label>
-    <input id="playerName" placeholder="Naam">
+    <input id="playerName" placeholder="Naam speelster" autocomplete="off" aria-describedby="playerLookupStatus">
+    <div id="playerLookupStatus" class="status">Typ de naam van een speelster om haar WTA-ranking op te zoeken.</div>
 
     <div class="filters">
       <div>
@@ -366,6 +367,44 @@
       return JSON.parse(localStorage.getItem("courtiq-saved") || "[]");
     } catch {
       return [];
+    }
+  }
+
+
+  let playerLookupTimer = null;
+  let lastLookupName = "";
+
+  async function lookupPlayer() {
+    const name = $("playerName").value.trim();
+    if (name.length < 2 || name === lastLookupName) return;
+    lastLookupName = name;
+    $("playerLookupStatus").className = "status";
+    $("playerLookupStatus").textContent = "WTA-ranking zoeken...";
+    try {
+      const response = await fetch(`${API}/player-ranking?name=${encodeURIComponent(name)}`);
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Opzoeken mislukt.");
+      if (!result.matches.length) {
+        $("playerLookupStatus").className = "status";
+        $("playerLookupStatus").textContent = result.message || "Geen speelster gevonden.";
+        return;
+      }
+      if (result.matches.length === 1 || result.matches[0].name.toLowerCase() === name.toLowerCase()) {
+        const player = result.matches[0];
+        $("playerName").value = player.name;
+        if (player.ranking) $("ranking").value = player.ranking;
+        $("playerLookupStatus").className = "status success";
+        $("playerLookupStatus").textContent = player.ranking
+          ? `WTA-singlesranking gevonden: #${player.ranking}`
+          : "Speelster gevonden, maar er is geen ranking beschikbaar.";
+      } else {
+        $("playerLookupStatus").className = "status";
+        $("playerLookupStatus").textContent = "Meerdere speelsters gevonden: " + result.matches.map(p => p.name + (p.ranking ? " (#" + p.ranking + ")" : "")).join(", ") + ". Typ meer van de naam.";
+      }
+    } catch (error) {
+      $("playerLookupStatus").className = "status error";
+      $("playerLookupStatus").textContent = "WTA-ranking kon niet worden opgehaald: " + error.message;
+      lastLookupName = "";
     }
   }
 
@@ -658,6 +697,12 @@
     }
   }
 
+  $("playerName").addEventListener("input", () => {
+    clearTimeout(playerLookupTimer);
+    lastLookupName = "";
+    playerLookupTimer = setTimeout(lookupPlayer, 700);
+  });
+  $("playerName").addEventListener("change", lookupPlayer);
   $("saveProfile").addEventListener("click", saveProfile);
   $("refresh").addEventListener("click", () => refresh(true));
   $("showSaved").addEventListener("click", () => {
