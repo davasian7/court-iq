@@ -211,7 +211,8 @@ app.get("/api/player-ranking", async (req, res) => {
 
     const matches = await Promise.all(candidates.map(async player => {
       let ranking = Number(player.currentRank || player.ranking || player.rank || 0) || null;
-      let country = player.countryAcr || player.countryCode || player.country || "";\n      let rankingDate = player.rankingDate || player.rankDate || player.lastUpdated || null;
+      let country = player.countryAcr || player.countryCode || player.country || "";
+      let rankingDate = player.rankingDate || player.rankDate || player.lastUpdated || null;
 
       // The search response is name-oriented. Ask the documented profile
       // endpoint for ranking details when available.
@@ -234,7 +235,8 @@ app.get("/api/player-ranking", async (req, res) => {
             ranking ||
             0
           ) || null;
-          country = profileData.countryAcr || profileData.countryCode || profileData.country?.name || profileData.country?.acronym || country;\n          rankingDate = profileData.rankingDate || profileData.rankDate || profileData.rankingUpdated || profileData.lastUpdated || profileData.curRank?.date || rankingDate;
+          country = profileData.countryAcr || profileData.countryCode || profileData.country?.name || profileData.country?.acronym || country;
+          rankingDate = profileData.rankingDate || profileData.rankDate || profileData.rankingUpdated || profileData.lastUpdated || profileData.curRank?.date || rankingDate;
         }
       } catch {
         // Keep the name match even if ranking details are temporarily unavailable.
