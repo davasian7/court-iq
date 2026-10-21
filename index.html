@@ -492,22 +492,19 @@
   function matchesLevel(item, wanted) {
     if (!wanted) return true;
 
-    // Include the event name as some calendar records expose W15/W35 in
-    // the tournament name rather than in the tier/category field.
+    // W15/W35 can be present in the event name instead of tier/category.
     const value = [
       item.name,
       item.tier,
       item.category,
       item.round
     ].filter(Boolean).join(" ").toLowerCase().replace(/[–—]/g, "-");
+    const tokens = value.replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/);
 
-    if (wanted === "ITF") return /\\bitf\\b|\\bw15\\b|\\bw35\\b|\\bw50\\b|\\bw75\\b|\\bw100\\b/.test(value);
-    if (wanted === "WTA") return /\\bwta\\b/.test(value) && !/\\b125\\b/.test(value);
-    if (wanted === "125") return /\\b125\\b/.test(value);
-    if (/^W(15|35|50|75|100)$/.test(wanted)) {
-      return new RegExp(`\\\\b${wanted.toLowerCase()}\\\\b`).test(value);
-    }
-    return value.includes(wanted.toLowerCase());
+    if (wanted === "ITF") return ["itf", "w15", "w35", "w50", "w75", "w100"].some(token => tokens.includes(token));
+    if (wanted === "WTA") return tokens.includes("wta") && !tokens.includes("125");
+    if (wanted === "125") return tokens.includes("125");
+    return tokens.includes(wanted.toLowerCase());
   }
 
   function isUpcoming(item) {
