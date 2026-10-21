@@ -491,11 +491,22 @@
 
   function matchesLevel(item, wanted) {
     if (!wanted) return true;
-    const value = `${item.tier || ""} ${item.category || ""} ${item.round || ""}`.toLowerCase();
 
-    if (wanted === "ITF") return /itf|w15|w35|w50|w75|w100/.test(value);
-    if (wanted === "WTA") return /wta/.test(value);
-    if (wanted === "125") return /125/.test(value);
+    // Include the event name as some calendar records expose W15/W35 in
+    // the tournament name rather than in the tier/category field.
+    const value = [
+      item.name,
+      item.tier,
+      item.category,
+      item.round
+    ].filter(Boolean).join(" ").toLowerCase().replace(/[–—]/g, "-");
+
+    if (wanted === "ITF") return /\\bitf\\b|\\bw15\\b|\\bw35\\b|\\bw50\\b|\\bw75\\b|\\bw100\\b/.test(value);
+    if (wanted === "WTA") return /\\bwta\\b/.test(value) && !/\\b125\\b/.test(value);
+    if (wanted === "125") return /\\b125\\b/.test(value);
+    if (/^W(15|35|50|75|100)$/.test(wanted)) {
+      return new RegExp(`\\\\b${wanted.toLowerCase()}\\\\b`).test(value);
+    }
     return value.includes(wanted.toLowerCase());
   }
 
