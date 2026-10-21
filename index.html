@@ -311,14 +311,22 @@
         <label for="category">Categorie</label>
         <select id="category">
           <option value="">Alle categorieën</option>
-          <option value="WTA">WTA</option>
-          <option value="125">WTA 125</option>
-          <option value="ITF">ITF</option>
-          <option value="W15">W15</option>
-          <option value="W35">W35</option>
-          <option value="W50">W50</option>
-          <option value="W75">W75</option>
-          <option value="W100">W100</option>
+          <optgroup label="WTA Tour">
+            <option value="Grand Slam">Grand Slam</option>
+            <option value="WTA 1000">WTA 1000</option>
+            <option value="WTA 500">WTA 500</option>
+            <option value="WTA 250">WTA 250</option>
+            <option value="WTA 125">WTA 125</option>
+            <option value="WTA Finals">WTA Finals</option>
+          </optgroup>
+          <optgroup label="ITF Women's World Tennis Tour">
+            <option value="ITF">Alle ITF-categorieën</option>
+            <option value="W100">W100</option>
+            <option value="W75">W75</option>
+            <option value="W50">W50</option>
+            <option value="W35">W35</option>
+            <option value="W15">W15</option>
+          </optgroup>
         </select>
       </div>
       <div>
@@ -492,7 +500,6 @@
   function matchesLevel(item, wanted) {
     if (!wanted) return true;
 
-    // W15/W35 can be present in the event name instead of tier/category.
     const value = [
       item.name,
       item.tier,
@@ -500,11 +507,24 @@
       item.round
     ].filter(Boolean).join(" ").toLowerCase().replace(/[–—]/g, "-");
     const tokens = value.replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/);
+    const has = token => tokens.includes(token.toLowerCase());
 
-    if (wanted === "ITF") return ["itf", "w15", "w35", "w50", "w75", "w100"].some(token => tokens.includes(token));
-    if (wanted === "WTA") return tokens.includes("wta") && !tokens.includes("125");
-    if (wanted === "125") return tokens.includes("125");
-    return tokens.includes(wanted.toLowerCase());
+    if (wanted === "ITF") {
+      return ["w15", "w35", "w50", "w75", "w100", "itf"].some(has);
+    }
+    if (wanted === "Grand Slam") {
+      return /grand slam|australian open|roland garros|french open|wimbledon|us open/.test(value);
+    }
+    if (wanted === "WTA Finals") {
+      return /wta finals|tour championships|finals riyadh/.test(value);
+    }
+    if (wanted === "WTA 1000") return has("wta") && has("1000");
+    if (wanted === "WTA 500") return has("wta") && has("500");
+    if (wanted === "WTA 250") return has("wta") && has("250");
+    if (wanted === "WTA 125" || wanted === "125") return has("125");
+    if (/^W(15|35|50|75|100)$/.test(wanted)) return has(wanted);
+    if (wanted === "WTA") return has("wta");
+    return has(wanted);
   }
 
   function isUpcoming(item) {
