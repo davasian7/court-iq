@@ -198,7 +198,8 @@ app.get("/api/player-ranking", async (req, res) => {
     res.status(502).json({ ok: false, error: error.message || "Spelersranking ophalen is mislukt." });
   }
 });
-\napp.get("/api/refresh", refreshCalendar);
+
+app.get("/api/refresh", refreshCalendar);
 app.post("/api/refresh", refreshCalendar);
 
 app.listen(PORT, () => {
