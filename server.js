@@ -151,7 +151,54 @@ app.get("/api/tournaments", (req, res) => {
   });
 });
 
-app.get("/api/refresh", refreshCalendar);
+
+app.get("/api/player-ranking", async (req, res) => {
+  const name = String(req.query.name || "").trim();
+  if (name.length < 2) {
+    return res.status(400).json({ ok: false, error: "Vul minstens 2 letters van de speelsternaam in." });
+  }
+
+  try {
+    const url = "https://api.wtatennis.com/tennis/players/ranked?type=rankSingles&metric=singles&page=0&pageSize=1000";
+    const response = await fetch(url, {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error("De WTA-ranking is tijdelijk niet beschikbaar (HTTP " + response.status + ").");
+    }
+
+    const rows = await response.json();
+    if (!Array.isArray(rows)) {
+      throw new Error("De WTA-ranking gaf een onverwacht antwoord terug.");
+    }
+
+    const normalize = value => String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const query = normalize(name);
+    const matches = rows.filter(row => {
+      const fullName = normalize(row.player?.fullName || row.fullName || row.name);
+      return fullName === query || fullName.includes(query);
+    }).slice(0, 8).map(row => ({
+      name: row.player?.fullName || row.fullName || row.name,
+      ranking: Number(row.ranking || row.rank || 0) || null,
+      country: row.player?.countryCode || row.player?.country || row.countryCode || ""
+    }));
+
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json({ ok: true, matches, source: "WTA", message: matches.length ? "" : "Geen overeenkomst gevonden in de gepubliceerde WTA-singlesranking. Controleer de spelling of probeer de volledige naam." });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: error.message || "Spelersranking ophalen is mislukt." });
+  }
+});
+\napp.get("/api/refresh", refreshCalendar);
 app.post("/api/refresh", refreshCalendar);
 
 app.listen(PORT, () => {
