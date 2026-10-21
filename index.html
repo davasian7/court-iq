@@ -722,7 +722,7 @@
 
       $("dataStatus").className = "status success";
       $("dataStatus").textContent =
-        `${result.count} toernooien geladen voor ${result.year}.`;
+        `${result.count} toernooien geladen voor ${Array.isArray(result.years) ? result.years.join(" en ") : result.year}.`;
       $("lastUpdated").textContent =
         "Laatst vernieuwd: " + new Date(result.lastRefresh).toLocaleString("nl-BE");
     } catch (error) {
