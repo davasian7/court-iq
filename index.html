@@ -332,17 +332,24 @@
         </select>
       </div>
       <div>
-        <label for="country">Land</label>
+        <label for="country">Continent</label>
         <select id="country">
-          <option value="">Alle landen</option>
+          <option value="">Alle continenten</option>
+          <option value="Europe">Europa</option>
+          <option value="Asia">Azië</option>
+          <option value="North America">Noord-Amerika</option>
+          <option value="South America">Zuid-Amerika</option>
+          <option value="Africa">Afrika</option>
+          <option value="Oceania">Oceanië</option>
         </select>
       </div>
       <div>
-        <label for="period">Periode</label>
+        <label for="period">Toernooien in</label>
         <select id="period">
+          <option value="month">Komende maand</option>
+          <option value="sixMonths">Komende 6 maanden</option>
+          <option value="year">Komend jaar</option>
           <option value="all">Alle datums</option>
-          <option value="upcoming">Vandaag en later</option>
-          <option value="past">Voorbije toernooien</option>
         </select>
       </div>
     </div>
@@ -541,19 +548,20 @@
   function populateCountries() {
     const select = $("country");
     const previous = select.value;
-    const countries = [...new Set(
-      tournaments.map(t => t.country).filter(Boolean)
-    )].sort((a, b) => a.localeCompare(b));
-
-    select.innerHTML = '<option value="">Alle landen</option>';
-
-    countries.forEach(country => {
+    select.innerHTML = '<option value="">Alle continenten</option>';
+    [
+      ["Europe", "Europa"],
+      ["Asia", "Azië"],
+      ["North America", "Noord-Amerika"],
+      ["South America", "Zuid-Amerika"],
+      ["Africa", "Afrika"],
+      ["Oceania", "Oceanië"]
+    ].forEach(([value, label]) => {
       const option = document.createElement("option");
-      option.value = country;
-      option.textContent = country;
+      option.value = value;
+      option.textContent = label;
       select.appendChild(option);
     });
-
     select.value = previous;
   }
 
@@ -569,9 +577,18 @@
       if (query && !text(item).includes(query)) return false;
       if (category && !matchesLevel(item, category)) return false;
       if (!matchesSurface(item, surface)) return false;
-      if (country && item.country !== country) return false;
-      if (period === "upcoming" && !isUpcoming(item)) return false;
-      if (period === "past" && !isPast(item)) return false;
+      if (country && continentFor(item) !== country) return false;
+      const eventDate = dateValue(item);
+      if (period !== "all") {
+        if (!eventDate || !isUpcoming(item)) return false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const cutoff = new Date(today);
+        if (period === "month") cutoff.setMonth(cutoff.getMonth() + 1);
+        if (period === "sixMonths") cutoff.setMonth(cutoff.getMonth() + 6);
+        if (period === "year") cutoff.setFullYear(cutoff.getFullYear() + 1);
+        if (eventDate > cutoff) return false;
+      }
       return true;
     }).sort((a, b) => {
       const da = dateValue(a);
