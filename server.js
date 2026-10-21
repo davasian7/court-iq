@@ -106,6 +106,41 @@ async function fetchITFCalendar() {
   return unique;
 }
 
+app.get("/api/debug-itf", async (req, res) => {
+  try {
+    const response = await fetch(ITF_URL, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; COURT-IQ/1.0)",
+        "Accept": "text/html,application/xhtml+xml"
+      },
+      signal: AbortSignal.timeout(20000)
+    });
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    res.json({
+      httpStatus: response.status,
+      contentType: response.headers.get("content-type"),
+      htmlLength: html.length,
+      title: clean($("title").first().text()),
+      tableCount: $("table").length,
+      rowCount: $("tr").length,
+      scriptSources: $("script[src]")
+        .map((_, el) => $(el).attr("src"))
+        .get()
+        .slice(0, 30),
+      bodyPreview: clean($("body").text()).slice(0, 1500)
+    });
+  } catch (error) {
+    res.status(502).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "COURT IQ" });
 });
