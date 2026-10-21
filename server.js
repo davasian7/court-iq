@@ -152,50 +152,109 @@ app.get("/api/tournaments", (req, res) => {
 });
 
 
+
 app.get("/api/player-ranking", async (req, res) => {
   const name = String(req.query.name || "").trim();
   if (name.length < 2) {
     return res.status(400).json({ ok: false, error: "Vul minstens 2 letters van de speelsternaam in." });
   }
 
+  const apiKey = process.env.SPORTSAPI365_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ ok: false, error: "De spelerszoekfunctie is niet geconfigureerd." });
+  }
+
+  const headers = {
+    "X-Gravitee-Api-Key": apiKey,
+    "Accept": "application/json"
+  };
+  const normalize = value => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
   try {
-    const url = "https://api.wtatennis.com/tennis/players/ranked?type=rankSingles&metric=singles&page=0&pageSize=1000";
-    const response = await fetch(url, {
-      headers: { "Accept": "application/json" },
+    // Use the documented SportsAPI365 search endpoint, rather than relying
+    // on the public WTA ranking endpoint's undocumented response structure.
+    const searchUrl = `${API_BASE}/search?search=${encodeURIComponent(name)}`;
+    const searchResponse = await fetch(searchUrl, {
+      headers,
       signal: AbortSignal.timeout(15000)
     });
+    const searchBody = await searchResponse.text();
 
-    if (!response.ok) {
-      throw new Error("De WTA-ranking is tijdelijk niet beschikbaar (HTTP " + response.status + ").");
+    if (!searchResponse.ok) {
+      throw new Error(`SportsAPI365 zoekopdracht mislukt (HTTP ${searchResponse.status}).`);
     }
 
-    const rows = await response.json();
-    if (!Array.isArray(rows)) {
-      throw new Error("De WTA-ranking gaf een onverwacht antwoord terug.");
+    let searchData;
+    try {
+      searchData = JSON.parse(searchBody);
+    } catch {
+      throw new Error("De spelerszoekfunctie gaf geen geldige JSON terug.");
     }
 
-    const normalize = value => String(value || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9 ]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
+    const buckets = Array.isArray(searchData.data) ? searchData.data : [];
+    const playerBucket = buckets.find(bucket => bucket.category === "player_wta");
+    const rawPlayers = playerBucket && Array.isArray(playerBucket.result) ? playerBucket.result : [];
     const query = normalize(name);
-    const matches = rows.filter(row => {
-      const fullName = normalize(row.player?.fullName || row.fullName || row.name);
-      return fullName === query || fullName.includes(query);
-    }).slice(0, 8).map(row => ({
-      name: row.player?.fullName || row.fullName || row.name,
-      ranking: Number(row.ranking || row.rank || 0) || null,
-      country: row.player?.countryCode || row.player?.country || row.countryCode || ""
+    const candidates = rawPlayers
+      .map(player => typeof player === "string" ? { name: player } : player)
+      .filter(player => player.name && (
+        normalize(player.name) === query ||
+        normalize(player.name).includes(query)
+      ))
+      .slice(0, 8);
+
+    const matches = await Promise.all(candidates.map(async player => {
+      let ranking = Number(player.currentRank || player.ranking || player.rank || 0) || null;
+      let country = player.countryAcr || player.countryCode || player.country || "";
+
+      // The search response is name-oriented. Ask the documented profile
+      // endpoint for ranking details when available.
+      try {
+        const profileUrl = `${API_BASE}/profile/${encodeURIComponent(player.name)}?type=wta`;
+        const profileResponse = await fetch(profileUrl, {
+          headers,
+          signal: AbortSignal.timeout(10000)
+        });
+        if (profileResponse.ok) {
+          const profile = await profileResponse.json();
+          const profileData = profile.data && !Array.isArray(profile.data) ? profile.data : profile;
+          ranking = Number(
+            profileData.currentRank ||
+            profileData.currentRanking ||
+            profileData.ranking ||
+            profileData.rank ||
+            profileData.curRank?.rank ||
+            profileData.curRank?.position ||
+            ranking ||
+            0
+          ) || null;
+          country = profileData.countryAcr || profileData.country?.acronym || country;
+        }
+      } catch {
+        // Keep the name match even if ranking details are temporarily unavailable.
+      }
+
+      return { name: player.name, ranking, country };
     }));
 
-    res.setHeader("Cache-Control", "public, max-age=3600");
-    res.json({ ok: true, matches, source: "WTA", message: matches.length ? "" : "Geen overeenkomst gevonden in de gepubliceerde WTA-singlesranking. Controleer de spelling of probeer de volledige naam." });
+    res.setHeader("Cache-Control", "public, max-age=1800");
+    res.json({
+      ok: true,
+      matches,
+      source: "SportsAPI365",
+      message: matches.length ? "" : "Geen speelster gevonden. Controleer de spelling of probeer alleen de achternaam."
+    });
   } catch (error) {
-    res.status(502).json({ ok: false, error: error.message || "Spelersranking ophalen is mislukt." });
+    res.status(502).json({
+      ok: false,
+      error: error.message || "Spelersranking ophalen is mislukt."
+    });
   }
 });
 
