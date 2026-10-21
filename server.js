@@ -106,25 +106,33 @@ async function fetchITFCalendar() {
   return unique;
 }
 
+
 app.get("/api/test-calendar", async (req, res) => {
   try {
     const response = await fetch(
-      "https://tennis-api-atp-wta-itf.p.rapidapi.com/tennis/v2/wta/tournament/calendar/2026?pageNo=1",
+      "https://api.sportsapi365.com/v1/tennis/wta/tournament/calendar/2026",
       {
         headers: {
-          "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
-          "X-RapidAPI-Host": "tennis-api-atp-wta-itf.p.rapidapi.com"
+          "X-Gravitee-Api-Key": process.env.SPORTSAPI365_KEY,
+          "Accept": "application/json"
         },
         signal: AbortSignal.timeout(20000)
       }
     );
 
-    const result = await response.json();
+    const body = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(body);
+    } catch {
+      data = { responsePreview: body.slice(0, 1000) };
+    }
 
     res.status(response.ok ? 200 : response.status).json({
       ok: response.ok,
       status: response.status,
-      dataPreview: result
+      dataPreview: data
     });
   } catch (error) {
     res.status(502).json({
@@ -133,6 +141,7 @@ app.get("/api/test-calendar", async (req, res) => {
     });
   }
 });
+
 
 
 app.get("/api/debug-itf", async (req, res) => {
