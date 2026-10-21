@@ -253,8 +253,16 @@
         <input id="ranking" type="number" min="1" placeholder="Bijv. 450">
       </div>
       <div>
-        <label for="region">Voorkeursland</label>
-        <input id="region" placeholder="Bijv. France">
+        <label for="region">Voorkeurscontinent</label>
+        <select id="region">
+          <option value="">Alle continenten</option>
+          <option value="Europe">Europa</option>
+          <option value="Asia">Azië</option>
+          <option value="North America">Noord-Amerika</option>
+          <option value="South America">Zuid-Amerika</option>
+          <option value="Africa">Afrika</option>
+          <option value="Oceania">Oceanië</option>
+        </select>
       </div>
       <div>
         <label for="preferredSurface">Voorkeur ondergrond</label>
@@ -502,14 +510,32 @@
     return d < today;
   }
 
+  function continentFor(item) {
+    const country = String(item.country || "").toLowerCase();
+    const code = String(item.countryCode || "").toUpperCase();
+    const europe = ["belgium","france","netherlands","germany","spain","italy","portugal","united kingdom","great britain","switzerland","austria","poland","czechia","czech republic","sweden","norway","denmark","finland","ireland","croatia","serbia","romania","bulgaria","greece","ukraine","hungary","slovakia","slovenia","luxembourg","estonia","latvia","lithuania","turkey"];
+    const asia = ["china","japan","south korea","korea","vietnam","thailand","india","indonesia","malaysia","singapore","taiwan","hong kong","philippines","uzbekistan","kazakhstan","qatar","united arab emirates","saudi arabia","israel"];
+    const africa = ["egypt","morocco","tunisia","south africa","kenya","nigeria","algeria"];
+    const northAmerica = ["united states","usa","canada","mexico","puerto rico"];
+    const southAmerica = ["argentina","brazil","chile","colombia","peru","ecuador","uruguay","venezuela","paraguay","bolivia"];
+    const oceania = ["australia","new zealand"];
+    if (europe.includes(country) || ["BEL","FRA","NED","GER","ESP","ITA","GBR","SUI","AUT","POL","SWE","NOR","DEN","FIN","IRL"].includes(code)) return "Europe";
+    if (asia.includes(country) || ["CHN","JPN","KOR","VIE","THA","IND","INA","MAS","SGP","TPE","HKG","PHI","UZB","KAZ"].includes(code)) return "Asia";
+    if (africa.includes(country) || ["EGY","MAR","TUN","RSA","KEN","NGR","ALG"].includes(code)) return "Africa";
+    if (northAmerica.includes(country) || ["USA","CAN","MEX","PUR"].includes(code)) return "North America";
+    if (southAmerica.includes(country) || ["ARG","BRA","CHI","COL","PER","ECU","URU","VEN","PAR","BOL"].includes(code)) return "South America";
+    if (oceania.includes(country) || ["AUS","NZL"].includes(code)) return "Oceania";
+    return "";
+  }
+
   function profileMatch(item) {
     const surface = $("preferredSurface").value;
     const level = $("level").value;
-    const region = $("region").value.trim().toLowerCase();
+    const region = $("region").value;
 
     return matchesSurface(item, surface)
       && matchesLevel(item, level)
-      && (!region || `${item.country} ${item.countryCode} ${item.name}`.toLowerCase().includes(region));
+      && (!region || continentFor(item) === region);
   }
 
   function populateCountries() {
