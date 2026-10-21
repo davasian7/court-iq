@@ -216,6 +216,13 @@
       .filters .full { grid-column: auto; }
       h1 { font-size: 27px; }
     }
+  
+    .hint { color: var(--muted); font-size: 11px; font-weight: 400; }
+    .check-filter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin: 6px 0 14px; }
+    .check-filter strong { grid-column: 1 / -1; font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .check-filter label { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; font-weight: 500; }
+    .check-filter input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--green); flex-shrink: 0; }
+    .check-filter .group-actions { grid-column: 1 / -1; }
   </style>
 </head>
 
@@ -308,48 +315,43 @@
         <input id="search" placeholder="Zoek op naam of plaats...">
       </div>
       <div>
-        <label for="category">Categorie</label>
-        <select id="category">
-          <option value="">Alle categorieën</option>
-          <optgroup label="WTA Tour">
-            <option value="Grand Slam">Grand Slam</option>
-            <option value="WTA 1000">WTA 1000</option>
-            <option value="WTA 500">WTA 500</option>
-            <option value="WTA 250">WTA 250</option>
-            <option value="WTA 125">WTA 125</option>
-            <option value="WTA Finals">WTA Finals</option>
-          </optgroup>
-          <optgroup label="ITF Women's World Tennis Tour">
-            <option value="ITF">Alle ITF-categorieën</option>
-            <option value="W100">W100</option>
-            <option value="W75">W75</option>
-            <option value="W50">W50</option>
-            <option value="W35">W35</option>
-            <option value="W15">W15</option>
-          </optgroup>
-        </select>
+        <label>Categorieën <span class="hint">(meerdere mogelijk)</span></label>
+        <div id="categoryFilters" class="check-filter">
+          <strong>WTA Tour</strong>
+          <label><input type="checkbox" value="Grand Slam"> Grand Slam</label>
+          <label><input type="checkbox" value="WTA 1000"> WTA 1000</label>
+          <label><input type="checkbox" value="WTA 500"> WTA 500</label>
+          <label><input type="checkbox" value="WTA 250"> WTA 250</label>
+          <label><input type="checkbox" value="WTA 125"> WTA 125</label>
+          <label><input type="checkbox" value="WTA Finals"> WTA Finals</label>
+          <strong>ITF Women's World Tennis Tour</strong>
+          <label><input type="checkbox" value="ITF"> Alle ITF-categorieën</label>
+          <label><input type="checkbox" value="W100"> W100</label>
+          <label><input type="checkbox" value="W75"> W75</label>
+          <label><input type="checkbox" value="W50"> W50</label>
+          <label><input type="checkbox" value="W35"> W35</label>
+          <label><input type="checkbox" value="W15"> W15</label>
+        </div>
       </div>
       <div>
-        <label for="surface">Ondergrond</label>
-        <select id="surface">
-          <option value="">Alle ondergronden</option>
-          <option value="clay">Clay</option>
-          <option value="hard">Hardcourt</option>
-          <option value="grass">Grass</option>
-          <option value="indoor">Indoor</option>
-        </select>
+        <label>Ondergronden <span class="hint">(meerdere mogelijk)</span></label>
+        <div id="surfaceFilters" class="check-filter">
+          <label><input type="checkbox" value="clay"> Clay</label>
+          <label><input type="checkbox" value="hard"> Hardcourt</label>
+          <label><input type="checkbox" value="grass"> Grass</label>
+          <label><input type="checkbox" value="indoor"> Indoor</label>
+        </div>
       </div>
       <div>
-        <label for="country">Continent</label>
-        <select id="country">
-          <option value="">Alle continenten</option>
-          <option value="Europe">Europa</option>
-          <option value="Asia">Azië</option>
-          <option value="North America">Noord-Amerika</option>
-          <option value="South America">Zuid-Amerika</option>
-          <option value="Africa">Afrika</option>
-          <option value="Oceania">Oceanië</option>
-        </select>
+        <label>Continenten <span class="hint">(meerdere mogelijk)</span></label>
+        <div id="continentFilters" class="check-filter">
+          <label><input type="checkbox" value="Europe"> Europa</label>
+          <label><input type="checkbox" value="Asia"> Azië</label>
+          <label><input type="checkbox" value="North America"> Noord-Amerika</label>
+          <label><input type="checkbox" value="South America"> Zuid-Amerika</label>
+          <label><input type="checkbox" value="Africa"> Afrika</label>
+          <label><input type="checkbox" value="Oceania"> Oceanië</label>
+        </div>
       </div>
       <div>
         <label for="period">Toernooien in</label>
@@ -574,38 +576,22 @@
   }
 
   function populateCountries() {
-    const select = $("country");
-    const previous = select.value;
-    select.innerHTML = '<option value="">Alle continenten</option>';
-    [
-      ["Europe", "Europa"],
-      ["Asia", "Azië"],
-      ["North America", "Noord-Amerika"],
-      ["South America", "Zuid-Amerika"],
-      ["Africa", "Afrika"],
-      ["Oceania", "Oceanië"]
-    ].forEach(([value, label]) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label;
-      select.appendChild(option);
-    });
-    select.value = previous;
+    // Continent choices are static checkboxes; nothing to populate dynamically.
   }
 
   function filtered() {
     const query = $("search").value.trim().toLowerCase();
-    const category = $("category").value;
-    const surface = $("surface").value;
-    const country = $("country").value;
+    const categories = [...document.querySelectorAll("#categoryFilters input:checked")].map(input => input.value);
+    const surfaces = [...document.querySelectorAll("#surfaceFilters input:checked")].map(input => input.value);
+    const continents = [...document.querySelectorAll("#continentFilters input:checked")].map(input => input.value);
     const period = $("period").value;
 
     return tournaments.filter(item => {
       if (showSavedOnly && !savedIds.includes(String(item.id))) return false;
       if (query && !text(item).includes(query)) return false;
-      if (category && !matchesLevel(item, category)) return false;
-      if (!matchesSurface(item, surface)) return false;
-      if (country && continentFor(item) !== country) return false;
+      if (categories.length && !categories.some(category => matchesLevel(item, category))) return false;
+      if (surfaces.length && !surfaces.some(surface => matchesSurface(item, surface))) return false;
+      if (continents.length && !continents.includes(continentFor(item))) return false;
       const eventDate = dateValue(item);
       if (period !== "all") {
         if (!eventDate || !isUpcoming(item)) return false;
@@ -645,7 +631,7 @@
     const profile = {
       surface: $("preferredSurface").value,
       level: $("level").value,
-      region: $("region").value.trim()
+      region: $("region").value
     };
 
     if (!list.length) {
@@ -787,11 +773,16 @@
     render();
   });
 
-  ["search", "category", "surface", "country", "period"]
-    .forEach(id => $(id).addEventListener("input", () => {
+  ["search", "period"].forEach(id => $(id).addEventListener("input", () => {
+    visibleCount = 30;
+    render();
+  }));
+  ["categoryFilters", "surfaceFilters", "continentFilters"].forEach(id => {
+    $(id).addEventListener("change", () => {
       visibleCount = 30;
       render();
-    }));
+    });
+  });
 
   $("loadMore").addEventListener("click", () => {
     visibleCount += 30;
