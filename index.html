@@ -320,6 +320,7 @@
         <label>Categorieën <span class="hint">(meerdere mogelijk)</span></label>
         <div id="categoryFilters" class="check-filter">
           <strong>WTA Tour</strong>
+          <label><input type="checkbox" value="ALL_WTA"> Alle WTA-toernooien</label>
           <label><input type="checkbox" value="Grand Slam"> Grand Slam</label>
           <label><input type="checkbox" value="WTA 1000"> WTA 1000</label>
           <label><input type="checkbox" value="WTA 500"> WTA 500</label>
@@ -515,6 +516,11 @@
 
     if (wanted === "ITF") {
       return ["w15", "w35", "w50", "w75", "w100", "itf"].some(has);
+    }
+    if (wanted === "ALL_WTA") {
+      // The source calendar also contains ITF events; the WTA option includes
+      // every non-ITF event, including Grand Slams and WTA 125 tournaments.
+      return !["w15", "w35", "w50", "w75", "w100", "itf"].some(has);
     }
     if (wanted === "Grand Slam") {
       return /grand slam|australian open|roland garros|french open|wimbledon|us open/.test(value);
