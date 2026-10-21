@@ -61,36 +61,38 @@ async function fetchCalendar(year) {
   const body = await response.text();
 
   if (!response.ok) {
-    throw new Error(`SportsAPI365 gaf HTTP ${response.status}: ${body.slice(0, 300)}`);
+    throw new Error(`Kalender ${year}: SportsAPI365 gaf HTTP ${response.status}: ${body.slice(0, 200)}`);
   }
 
   let result;
-
   try {
     result = JSON.parse(body);
   } catch {
-    throw new Error("SportsAPI365 stuurde geen geldige JSON terug.");
+    throw new Error(`Kalender ${year}: SportsAPI365 stuurde geen geldige JSON terug.`);
   }
 
   if (!Array.isArray(result.data)) {
-    throw new Error("De API-respons bevat geen herkenbare toernooilijst.");
+    throw new Error(`Kalender ${year}: de API-respons bevat geen herkenbare toernooilijst.`);
   }
 
-  const normalized = result.data.map(normalizeTournament);
+  return result.data.map(normalizeTournament);
+}
 
-  if (normalized.length === 0) {
-    throw new Error("De API gaf geen toernooien terug. Bestaande gegevens blijven behouden.");
-  }
-
-  tournaments = normalized;
-  lastRefresh = new Date().toISOString();
-  lastError = null;
-
-  return tournaments;
+function deduplicateTournaments(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = item.id != null
+      ? `id:${item.id}`
+      : `name-date:${String(item.name || "").trim().toLowerCase()}|${String(item.date || "").slice(0, 10)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function refreshCalendar(req, res) {
-  const requestedYear = Number(req.query.year || new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
+  const requestedYear = Number(req.query.year || currentYear);
 
   if (
     !Number.isInteger(requestedYear) ||
@@ -103,26 +105,54 @@ async function refreshCalendar(req, res) {
     });
   }
 
-  try {
-    const data = await fetchCalendar(requestedYear);
+  // Always request two consecutive years so the calendar's "next 12 months"
+  // and "all dates" views can include tournaments announced for next year.
+  const years = [requestedYear, requestedYear + 1];
+  const results = await Promise.allSettled(years.map(year => fetchCalendar(year)));
+  const successful = [];
+  const errors = [];
 
-    res.json({
-      ok: true,
-      year: requestedYear,
-      count: data.length,
-      lastRefresh,
-      message: `${data.length} echte toernooien geladen via SportsAPI365.`
-    });
-  } catch (error) {
-    lastError = error.message;
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      successful.push({ year: years[index], data: result.value });
+    } else {
+      errors.push(result.reason?.message || `Kalender ${years[index]} ophalen mislukt.`);
+    }
+  });
 
-    res.status(502).json({
+  if (!successful.length) {
+    lastError = errors.join(" ");
+    return res.status(502).json({
       ok: false,
-      error: error.message,
+      error: lastError,
       existingCount: tournaments.length,
       lastRefresh
     });
   }
+
+  const combined = deduplicateTournaments(successful.flatMap(item => item.data));
+  if (!combined.length) {
+    lastError = "De API gaf geen toernooien terug. Bestaande gegevens blijven behouden.";
+    return res.status(502).json({
+      ok: false,
+      error: lastError,
+      existingCount: tournaments.length,
+      lastRefresh
+    });
+  }
+
+  tournaments = combined;
+  lastRefresh = new Date().toISOString();
+  lastError = errors.length ? errors.join(" ") : null;
+
+  res.json({
+    ok: true,
+    years: successful.map(item => item.year),
+    count: tournaments.length,
+    lastRefresh,
+    warning: errors.length ? errors.join(" ") : null,
+    message: `${tournaments.length} unieke toernooien geladen voor ${successful.map(item => item.year).join(" en ")} via SportsAPI365.`
+  });
 }
 
 app.get("/api/health", (req, res) => {
