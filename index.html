@@ -4,193 +4,690 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101820">
-  <title>COURT IQ — Tennis Tournament Planner</title>
+  <meta name="theme-color" content="#101713">
+  <title>COURT IQ — Tennis Planner</title>
   <style>
-  /* COURT IQ — mobile improvements */
-html {
-  scroll-behavior: smooth;
-  -webkit-text-size-adjust: 100%;
-}
+    :root {
+      color-scheme: dark;
+      --bg: #101713;
+      --panel: #19221c;
+      --panel2: #202c24;
+      --text: #f4f7f2;
+      --muted: #a2afa4;
+      --green: #b7f36b;
+      --border: #344137;
+      --red: #ff8585;
+    }
 
-body {
-  padding-bottom: env(safe-area-inset-bottom);
-}
+    * { box-sizing: border-box; }
 
-header {
-  padding-top: 20px;
-  padding-bottom: 18px;
-}
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-main {
-  padding-bottom: calc(40px + env(safe-area-inset-bottom));
-}
+    header {
+      padding: 24px 18px 18px;
+      border-bottom: 1px solid var(--border);
+      background: #141c16;
+    }
 
-input,
-select,
-button {
-  min-height: 46px;
-  font-size: 16px;
-}
+    .brand {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 3px;
+    }
 
-button {
-  touch-action: manipulation;
-}
+    h1 {
+      margin: 8px 0 4px;
+      font-size: 30px;
+      letter-spacing: -1px;
+    }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
+    h2 { font-size: 18px; margin: 0 0 14px; }
 
-@media (max-width: 520px) {
-  .panel {
-    padding: 16px;
-    border-radius: 14px;
-  }
+    p { line-height: 1.5; }
 
-  .grid {
-    grid-template-columns: 1fr;
-  }
+    .muted { color: var(--muted); font-size: 13px; }
 
-  .row {
-    align-items: stretch;
-  }
+    main {
+      width: 100%;
+      max-width: 850px;
+      margin: auto;
+      padding: 18px 14px 40px;
+    }
 
-  #refresh {
-    width: 100% !important;
-  }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
 
-  #save,
-  #reset {
-    min-height: 48px;
-  }
-}
-</style>
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .stat strong {
+      display: block;
+      color: var(--green);
+      font-size: 24px;
+      margin-bottom: 3px;
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input, select, button {
+      width: 100%;
+      min-height: 46px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 11px 12px;
+      font: inherit;
+    }
+
+    input, select {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button {
+      background: var(--green);
+      color: #14200e;
+      font-weight: 800;
+      border: 0;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button:disabled { opacity: .55; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 10px;
+    }
+
+    .filters .full { grid-column: 1 / -1; }
+
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .status.error { color: var(--red); }
+    .status.success { color: var(--green); }
+
+    .tournament {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .tournament-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .tournament h3 {
+      font-size: 16px;
+      margin: 0 0 8px;
+      line-height: 1.4;
+    }
+
+    .tag {
+      display: inline-block;
+      background: var(--panel2);
+      color: var(--green);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 750;
+      margin: 0 4px 5px 0;
+    }
+
+    .tournament p {
+      margin: 5px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .save {
+      width: auto;
+      min-width: 42px;
+      min-height: 40px;
+      padding: 8px 12px;
+      flex-shrink: 0;
+    }
+
+    .saved { color: var(--green); }
+
+    .empty {
+      text-align: center;
+      padding: 28px 12px;
+      color: var(--muted);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-head button { width: auto; }
+
+    .hidden { display: none; }
+
+    a { color: var(--green); }
+
+    @media (max-width: 430px) {
+      .filters { grid-template-columns: 1fr; }
+      .filters .full { grid-column: auto; }
+      h1 { font-size: 27px; }
+    }
+  </style>
 </head>
+
 <body>
-  <header>
-    <div class="brand">COURT IQ</div>
-    <h1>Play smarter.</h1>
-    <p>Women's tennis tournament planner · ITF & WTA</p>
-  </header>
+<header>
+  <div class="brand">COURT IQ</div>
+  <h1>Tennis Tournament Planner</h1>
+  <div class="muted">Plan slimmer. Speel gerichter.</div>
+</header>
 
-  <main>
-    <section class="panel">
-      <div class="row">
-        <div>
-          <div class="pill">PLAYER PROFILE</div>
-          <h2>Plan your next tournaments</h2>
-        </div>
-      </div>
-      <div class="grid">
-        <div>
-          <label for="ranking">Current WTA ranking</label>
-          <input id="ranking" type="number" min="1" placeholder="e.g. 450">
-        </div>
-        <div>
-          <label for="category">Tournament category</label>
-          <select id="category">
-            <option value="all">All categories</option>
-            <option value="WTA">WTA</option>
-            <option value="ITF W15">ITF W15</option>
-            <option value="ITF W35">ITF W35</option>
-            <option value="ITF W50">ITF W50</option>
-            <option value="ITF W75">ITF W75</option>
-            <option value="ITF W100">ITF W100</option>
-          </select>
-        </div>
-        <div>
-          <label for="surface">Court surface</label>
-          <select id="surface">
-            <option value="all">All surfaces</option>
-            <option value="Hard">Hard</option>
-            <option value="Clay">Clay</option>
-            <option value="Grass">Grass</option>
-            <option value="Indoor hard">Indoor hard</option>
-          </select>
-        </div>
-        <div>
-          <label for="region">Region</label>
-          <select id="region">
-            <option value="all">Worldwide</option>
-            <option value="Europe">Europe</option>
-            <option value="Asia">Asia</option>
-            <option value="North America">North America</option>
-            <option value="South America">South America</option>
-            <option value="Africa">Africa</option>
-            <option value="Oceania">Oceania</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
-        <button class="primary" id="save">Save player profile</button>
-        <button class="secondary" id="reset">Reset filters</button>
-      </div>
-      <p id="message" role="status"></p>
-    </section>
+<main>
+  <div class="stats">
+    <div class="stat">
+      <strong id="totalCount">—</strong>
+      <span class="muted">Toernooien geladen</span>
+    </div>
+    <div class="stat">
+      <strong id="savedCount">0</strong>
+      <span class="muted">Opgeslagen toernooien</span>
+    </div>
+  </div>
 
-    <section class="panel">
-      <div class="row">
-        <div>
-          <div class="pill">TOURNAMENT DISCOVERY</div>
-          <h2>Find your opportunities</h2>
-        </div>
-        <button class="secondary" id="refresh" style="width:auto">↻ Refresh data</button>
+  <section class="panel">
+    <h2>Speelsterprofiel</h2>
+    <p class="muted">Stel je voorkeuren in om passende toernooien te herkennen.</p>
+
+    <label for="playerName">Naam speelster</label>
+    <input id="playerName" placeholder="Naam">
+
+    <div class="filters">
+      <div>
+        <label for="ranking">Huidige ranking</label>
+        <input id="ranking" type="number" min="1" placeholder="Bijv. 450">
       </div>
-      <p class="notice" id="dataStatus">No live tournament data connected yet. Use the official ITF and WTA calendars to verify dates and entry requirements.</p>
-      <div id="results">
-        <p>Once the tournament data source is connected, matching tournaments will appear here.</p>
+      <div>
+        <label for="region">Voorkeursland</label>
+        <input id="region" placeholder="Bijv. France">
       </div>
-    </section>
+      <div>
+        <label for="preferredSurface">Voorkeur ondergrond</label>
+        <select id="preferredSurface">
+          <option value="">Alle ondergronden</option>
+          <option value="clay">Clay</option>
+          <option value="hard">Hardcourt</option>
+          <option value="grass">Grass</option>
+          <option value="indoor">Indoor</option>
+        </select>
+      </div>
+      <div>
+        <label for="level">Voorkeursniveau</label>
+        <select id="level">
+          <option value="">Alle niveaus</option>
+          <option value="WTA">WTA</option>
+          <option value="125">WTA 125</option>
+          <option value="ITF">ITF</option>
+          <option value="W15">W15</option>
+          <option value="W35">W35</option>
+          <option value="W50">W50</option>
+          <option value="W75">W75</option>
+          <option value="W100">W100</option>
+        </select>
+      </div>
+    </div>
 
-    <footer>
-      COURT IQ · Planning support only. Tournament entry, eligibility and acceptance must be confirmed with the official organiser.
-    </footer>
-  </main>
+    <button id="saveProfile" style="margin-top:16px">Bewaar speelsterprofiel</button>
+    <div id="profileStatus" class="status"></div>
+  </section>
 
-  <script>
-    const fields = ["ranking", "category", "surface", "region"];
-    const message = document.getElementById("message");
+  <section class="panel">
+    <div class="section-head">
+      <h2>Toernooikalender</h2>
+      <button id="refresh" class="secondary">↻ Vernieuwen</button>
+    </div>
 
-    document.getElementById("save").addEventListener("click", () => {
-      const profile = {};
-      fields.forEach(id => profile[id] = document.getElementById(id).value);
-      try {
-        localStorage.setItem("court-iq-profile", JSON.stringify(profile));
-        message.textContent = "Player profile saved on this device.";
-      } catch {
-        message.textContent = "Profile could not be saved on this device.";
+    <p class="muted">Haal de actuele beschikbare kalender op via SportsAPI365.</p>
+
+    <div class="filters">
+      <div class="full">
+        <label for="search">Zoeken</label>
+        <input id="search" placeholder="Zoek op naam of plaats...">
+      </div>
+      <div>
+        <label for="category">Categorie</label>
+        <select id="category">
+          <option value="">Alle categorieën</option>
+          <option value="WTA">WTA</option>
+          <option value="125">WTA 125</option>
+          <option value="ITF">ITF</option>
+          <option value="W15">W15</option>
+          <option value="W35">W35</option>
+          <option value="W50">W50</option>
+          <option value="W75">W75</option>
+          <option value="W100">W100</option>
+        </select>
+      </div>
+      <div>
+        <label for="surface">Ondergrond</label>
+        <select id="surface">
+          <option value="">Alle ondergronden</option>
+          <option value="clay">Clay</option>
+          <option value="hard">Hardcourt</option>
+          <option value="grass">Grass</option>
+          <option value="indoor">Indoor</option>
+        </select>
+      </div>
+      <div>
+        <label for="country">Land</label>
+        <select id="country">
+          <option value="">Alle landen</option>
+        </select>
+      </div>
+      <div>
+        <label for="period">Periode</label>
+        <select id="period">
+          <option value="all">Alle datums</option>
+          <option value="upcoming">Vandaag en later</option>
+          <option value="past">Voorbije toernooien</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="dataStatus" class="status">Toernooigegevens worden geladen...</div>
+    <div id="lastUpdated" class="status"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2 id="resultsTitle">Toernooien</h2>
+      <button id="showSaved" class="secondary">Opgeslagen</button>
+    </div>
+    <div id="results"></div>
+    <button id="loadMore" class="secondary hidden">Toon meer</button>
+  </section>
+</main>
+
+<script>
+(() => {
+  const API = "https://court-iq-65el.onrender.com/api";
+  const $ = id => document.getElementById(id);
+
+  let tournaments = [];
+  let showSavedOnly = false;
+  let visibleCount = 30;
+  let savedIds = loadSavedIds();
+
+  function loadSavedIds() {
+    try {
+      return JSON.parse(localStorage.getItem("courtiq-saved") || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function loadProfile() {
+    try {
+      const profile = JSON.parse(localStorage.getItem("courtiq-profile") || "{}");
+      ["playerName", "ranking", "region", "preferredSurface", "level"]
+        .forEach(id => {
+          if (profile[id] !== undefined) $(id).value = profile[id];
+        });
+    } catch {}
+  }
+
+  function saveProfile() {
+    const profile = {};
+    ["playerName", "ranking", "region", "preferredSurface", "level"]
+      .forEach(id => profile[id] = $(id).value);
+
+    localStorage.setItem("courtiq-profile", JSON.stringify(profile));
+    $("profileStatus").textContent = "Profiel bewaard op dit toestel.";
+    $("profileStatus").className = "status success";
+    render();
+  }
+
+  function saveIds() {
+    localStorage.setItem("courtiq-saved", JSON.stringify(savedIds));
+    $("savedCount").textContent = savedIds.length;
+  }
+
+  function dateValue(item) {
+    if (!item.date) return null;
+    const d = new Date(item.date);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatDate(item) {
+    const d = dateValue(item);
+    if (!d) return "Datum niet beschikbaar";
+
+    return new Intl.DateTimeFormat("nl-BE", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(d);
+  }
+
+  function text(item) {
+    return [
+      item.name, item.tier, item.category, item.country,
+      item.countryCode, item.surface, item.round
+    ].filter(Boolean).join(" ").toLowerCase();
+  }
+
+  function matchesSurface(item, wanted) {
+    if (!wanted) return true;
+    const s = (item.surface || "").toLowerCase();
+
+    if (wanted === "clay") return s.includes("clay");
+    if (wanted === "grass") return s.includes("grass");
+    if (wanted === "indoor") return s.includes("indoor");
+    if (wanted === "hard") return s.includes("hard");
+    return true;
+  }
+
+  function matchesLevel(item, wanted) {
+    if (!wanted) return true;
+    const value = `${item.tier || ""} ${item.category || ""} ${item.round || ""}`.toLowerCase();
+
+    if (wanted === "ITF") return /itf|w15|w35|w50|w75|w100/.test(value);
+    if (wanted === "WTA") return /wta/.test(value);
+    if (wanted === "125") return /125/.test(value);
+    return value.includes(wanted.toLowerCase());
+  }
+
+  function isUpcoming(item) {
+    const d = dateValue(item);
+    if (!d) return true;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return d >= today;
+  }
+
+  function isPast(item) {
+    const d = dateValue(item);
+    if (!d) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return d < today;
+  }
+
+  function profileMatch(item) {
+    const surface = $("preferredSurface").value;
+    const level = $("level").value;
+    const region = $("region").value.trim().toLowerCase();
+
+    return matchesSurface(item, surface)
+      && matchesLevel(item, level)
+      && (!region || `${item.country} ${item.countryCode} ${item.name}`.toLowerCase().includes(region));
+  }
+
+  function populateCountries() {
+    const select = $("country");
+    const previous = select.value;
+    const countries = [...new Set(
+      tournaments.map(t => t.country).filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b));
+
+    select.innerHTML = '<option value="">Alle landen</option>';
+
+    countries.forEach(country => {
+      const option = document.createElement("option");
+      option.value = country;
+      option.textContent = country;
+      select.appendChild(option);
+    });
+
+    select.value = previous;
+  }
+
+  function filtered() {
+    const query = $("search").value.trim().toLowerCase();
+    const category = $("category").value;
+    const surface = $("surface").value;
+    const country = $("country").value;
+    const period = $("period").value;
+
+    return tournaments.filter(item => {
+      if (showSavedOnly && !savedIds.includes(String(item.id))) return false;
+      if (query && !text(item).includes(query)) return false;
+      if (category && !matchesLevel(item, category)) return false;
+      if (!matchesSurface(item, surface)) return false;
+      if (country && item.country !== country) return false;
+      if (period === "upcoming" && !isUpcoming(item)) return false;
+      if (period === "past" && !isPast(item)) return false;
+      return true;
+    }).sort((a, b) => {
+      const da = dateValue(a);
+      const db = dateValue(b);
+      if (!da && !db) return (a.name || "").localeCompare(b.name || "");
+      if (!da) return 1;
+      if (!db) return -1;
+      return da - db;
+    });
+  }
+
+  function element(tag, className, content) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content !== undefined) node.textContent = content;
+    return node;
+  }
+
+  function render() {
+    const list = filtered();
+    $("results").replaceChildren();
+    $("resultsTitle").textContent = showSavedOnly ? "Opgeslagen toernooien" : "Toernooien";
+    $("totalCount").textContent = tournaments.length;
+    $("savedCount").textContent = savedIds.length;
+
+    const profile = {
+      surface: $("preferredSurface").value,
+      level: $("level").value,
+      region: $("region").value.trim()
+    };
+
+    if (!list.length) {
+      $("results").appendChild(element(
+        "div", "panel empty",
+        showSavedOnly
+          ? "Je hebt nog geen toernooien opgeslagen."
+          : "Geen toernooien gevonden. Pas je filters aan of vernieuw de kalender."
+      ));
+    }
+
+    list.slice(0, visibleCount).forEach(item => {
+      const card = element("article", "tournament");
+      const top = element("div", "tournament-top");
+      const left = element("div");
+      left.appendChild(element("h3", "", item.name || "Naam niet beschikbaar"));
+
+      if (item.tier) left.appendChild(element("span", "tag", item.tier));
+      if (item.surface) left.appendChild(element("span", "tag", item.surface));
+
+      const saved = savedIds.includes(String(item.id));
+      const button = element("button", "secondary save", saved ? "★" : "☆");
+      button.setAttribute("aria-label", saved ? "Verwijder uit opgeslagen" : "Sla toernooi op");
+      button.addEventListener("click", () => {
+        const id = String(item.id);
+        savedIds = savedIds.includes(id)
+          ? savedIds.filter(value => value !== id)
+          : [...savedIds, id];
+        saveIds();
+        render();
+      });
+
+      top.append(left, button);
+      card.appendChild(top);
+
+      card.appendChild(element("p", "", "📅 " + formatDate(item)));
+
+      const location = [item.country, item.countryCode].filter(Boolean).join(" · ");
+      if (location) card.appendChild(element("p", "", "📍 " + location));
+      if (item.round) card.appendChild(element("p", "", "Categorie: " + item.round));
+
+      if (profile.surface || profile.level || profile.region) {
+        if (profileMatch(item)) {
+          card.appendChild(element("span", "tag", "Past bij je voorkeuren"));
+        }
       }
-    });
 
-    document.getElementById("reset").addEventListener("click", () => {
-      document.getElementById("ranking").value = "";
-      ["category", "surface", "region"].forEach(id => document.getElementById(id).selectedIndex = 0);
-      message.textContent = "Filters reset.";
-    });
-
-    document.getElementById("refresh").addEventListener("click", async () => {
-      const status = document.getElementById("dataStatus");
-      status.textContent = "Checking for a connected tournament data source…";
-      try {
-        const response = await fetch("/api/refresh", { method: "POST" });
-        if (!response.ok) throw new Error("Data service unavailable");
-        const data = await response.json();
-        status.textContent = data.message || "Refresh completed. Verify tournament details with the official organiser.";
-      } catch {
-        status.textContent = "Live data service is not connected yet. No tournament data was refreshed.";
+      if (item.link) {
+        try {
+          const url = new URL(item.link);
+          if (url.protocol === "https:" || url.protocol === "http:") {
+            const link = element("a", "", "Bekijk toernooi ↗");
+            link.href = url.href;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.style.display = "inline-block";
+            link.style.marginTop = "10px";
+            card.appendChild(link);
+          }
+        } catch {}
       }
+
+      $("results").appendChild(card);
     });
+
+    $("loadMore").classList.toggle("hidden", list.length <= visibleCount);
+  }
+
+  async function refresh(manual = false) {
+    const button = $("refresh");
+    button.disabled = true;
+    button.textContent = "Laden...";
+    $("dataStatus").className = "status";
+    $("dataStatus").textContent = "Toernooikalender ophalen...";
 
     try {
-      const saved = JSON.parse(localStorage.getItem("court-iq-profile") || "{}");
-      fields.forEach(id => {
-        if (saved[id] !== undefined) document.getElementById(id).value = saved[id];
-      });
-    } catch {}
-  </script>
+      const response = await fetch(`${API}/refresh`, { method: "POST" });
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || result.message || `HTTP ${response.status}`);
+      }
+
+      await loadTournaments();
+
+      $("dataStatus").className = "status success";
+      $("dataStatus").textContent =
+        `${result.count} toernooien geladen voor ${result.year}.`;
+      $("lastUpdated").textContent =
+        "Laatst vernieuwd: " + new Date(result.lastRefresh).toLocaleString("nl-BE");
+    } catch (error) {
+      $("dataStatus").className = "status error";
+      $("dataStatus").textContent =
+        "Vernieuwen mislukt: " + error.message +
+        ". Controleer je internetverbinding en probeer opnieuw.";
+      if (manual) $("lastUpdated").textContent = "Bestaande gegevens blijven zichtbaar.";
+    } finally {
+      button.disabled = false;
+      button.textContent = "↻ Vernieuwen";
+    }
+  }
+
+  async function loadTournaments() {
+    const response = await fetch(`${API}/tournaments`);
+    if (!response.ok) throw new Error(`Kalender ophalen mislukt: HTTP ${response.status}`);
+
+    const result = await response.json();
+    tournaments = Array.isArray(result.tournaments) ? result.tournaments : [];
+
+    populateCountries();
+    render();
+
+    if (result.lastRefresh) {
+      $("lastUpdated").textContent =
+        "Laatst vernieuwd: " + new Date(result.lastRefresh).toLocaleString("nl-BE");
+    }
+
+    if (tournaments.length) {
+      $("dataStatus").className = "status success";
+      $("dataStatus").textContent = `${tournaments.length} toernooien beschikbaar.`;
+    } else {
+      $("dataStatus").className = "status";
+      $("dataStatus").textContent = "Nog geen gegevens geladen. Tik op Vernieuwen.";
+    }
+  }
+
+  $("saveProfile").addEventListener("click", saveProfile);
+  $("refresh").addEventListener("click", () => refresh(true));
+  $("showSaved").addEventListener("click", () => {
+    showSavedOnly = !showSavedOnly;
+    $("showSaved").textContent = showSavedOnly ? "Alle toernooien" : "Opgeslagen";
+    visibleCount = 30;
+    render();
+  });
+
+  ["search", "category", "surface", "country", "period"]
+    .forEach(id => $(id).addEventListener("input", () => {
+      visibleCount = 30;
+      render();
+    }));
+
+  $("loadMore").addEventListener("click", () => {
+    visibleCount += 30;
+    render();
+  });
+
+  loadProfile();
+  saveIds();
+
+  loadTournaments().catch(error => {
+    $("dataStatus").className = "status error";
+    $("dataStatus").textContent =
+      "Kon de kalender niet laden: " + error.message +
+      ". Tik op Vernieuwen om opnieuw te proberen.";
+  });
+})();
+</script>
 </body>
 </html>
-
