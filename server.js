@@ -159,7 +159,7 @@ app.get("/api/player-ranking", async (req, res) => {
   }
 
   try {
-    const url = "https://api.wtatennis.com/tennis/players/ranked?type=rankSingles&metric=singles&page=0&pageSize=2000";
+    const url = "https://api.wtatennis.com/tennis/players/ranked?type=rankSingles&metric=singles&page=0&pageSize=1000";
     const response = await fetch(url, {
       headers: { "Accept": "application/json" },
       signal: AbortSignal.timeout(15000)
