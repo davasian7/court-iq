@@ -244,7 +244,8 @@
 
     <label for="playerName">Naam speelster</label>
     <input id="playerName" placeholder="Naam speelster" autocomplete="off" aria-describedby="playerLookupStatus">
-    <div id="playerLookupStatus" class="status">Typ de naam van een speelster om haar WTA-ranking op te zoeken.</div>
+    <div id="playerLookupStatus" class="status">Typ de naam van een speelster om haar ranking op te zoeken.</div>
+    <div id="playerNationality" class="status"></div>
 
     <div class="filters">
       <div>
@@ -393,9 +394,12 @@
         const player = result.matches[0];
         $("playerName").value = player.name;
         if (player.ranking) $("ranking").value = player.ranking;
+        $("playerNationality").textContent = player.country ? "Nationaliteit/land: " + player.country : "Nationaliteit niet beschikbaar via de gegevensbron.";
+        const rankDate = player.rankingDate ? new Date(player.rankingDate) : null;
+        const rankDateText = rankDate && !Number.isNaN(rankDate.getTime()) ? " · peildatum " + rankDate.toLocaleDateString("nl-BE") : "";
         $("playerLookupStatus").className = "status success";
         $("playerLookupStatus").textContent = player.ranking
-          ? `WTA-singlesranking gevonden: #${player.ranking}`
+          ? `WTA-singlesranking gevonden: #${player.ranking}${rankDateText}`
           : "Speelster gevonden, maar er is geen ranking beschikbaar.";
       } else {
         $("playerLookupStatus").className = "status";
