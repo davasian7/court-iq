@@ -1,0 +1,17 @@
+{
+  "name": "court-iq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "COURT IQ ITF tournament data service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^4.21.2"
+  }
+}
