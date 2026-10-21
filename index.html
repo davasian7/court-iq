@@ -514,13 +514,17 @@
     const tokens = value.replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/);
     const has = token => tokens.includes(token.toLowerCase());
 
+    // ITF tournament labels can arrive as W15, W-15, W 15, or via the
+    // tour name. Use a pattern against the original text, not only split tokens.
+    const isItfEvent =
+      /\bitf\b|women'?s world tennis tour|\bw[\s-]?(15|35|50|75|100)\b/i.test(value);
+
     if (wanted === "ITF") {
-      return ["w15", "w35", "w50", "w75", "w100", "itf"].some(has);
+      return isItfEvent;
     }
     if (wanted === "ALL_WTA") {
-      // The source calendar also contains ITF events; the WTA option includes
-      // every non-ITF event, including Grand Slams and WTA 125 tournaments.
-      return !["w15", "w35", "w50", "w75", "w100", "itf"].some(has);
+      // Include all non-ITF events, including Grand Slams and WTA 125 tournaments.
+      return !isItfEvent;
     }
     if (wanted === "Grand Slam") {
       return /grand slam|australian open|roland garros|french open|wimbledon|us open/.test(value);
