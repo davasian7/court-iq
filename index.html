@@ -223,6 +223,8 @@
     .check-filter label { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; font-weight: 500; }
     .check-filter input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--green); flex-shrink: 0; }
     .check-filter .group-actions { grid-column: 1 / -1; }
+  
+    .results-count { color: var(--muted); font-size: .8em; font-weight: 600; white-space: nowrap; }
   </style>
 </head>
 
@@ -370,7 +372,7 @@
 
   <section>
     <div class="section-head">
-      <h2 id="resultsTitle">Toernooien</h2>
+      <h2 id="resultsTitle">Toernooien <span id="resultsCount" class="results-count" aria-live="polite">(0)</span></h2>
       <button id="showSaved" class="secondary">Opgeslagen</button>
     </div>
     <div id="results"></div>
@@ -624,7 +626,8 @@
   function render() {
     const list = filtered();
     $("results").replaceChildren();
-    $("resultsTitle").textContent = showSavedOnly ? "Opgeslagen toernooien" : "Toernooien";
+    $("resultsTitle").childNodes[0].textContent = showSavedOnly ? "Opgeslagen toernooien " : "Toernooien ";
+    $("resultsCount").textContent = `(${list.length} resultaten)`;
     $("totalCount").textContent = tournaments.length;
     $("savedCount").textContent = savedIds.length;
 
