@@ -330,20 +330,6 @@
     </div>
 
     <p class="muted">De kalender wordt uit de openbare ITF-website gelezen en automatisch elke 5 minuten vernieuwd zolang de app open is. Je kunt ook handmatig vernieuwen.</p>
-    <details class="panel" id="itfImportPanel" style="margin-top:12px">
-      <summary style="font-weight:700;cursor:pointer">ITF-kalender importeren vanuit Safari</summary>
-      <p class="muted">Open de officiële ITF-kalender, kopieer de zichtbare tabel en plak de gekopieerde tekst hieronder. Dit is een proefimport; de gegevens worden lokaal op dit toestel bewaard.</p>
-      <p><a href="https://www.itftennis.com/en/tournament-calendar/womens-world-tennis-tour-calendar/" target="_blank" rel="noopener">Open officiële ITF-kalender ↗</a></p>
-      <label for="itfImportText">Gekopieerde tabeltekst</label>
-      <textarea id="itfImportText" rows="7" placeholder="Plak hier de gekopieerde ITF-tabel..."></textarea>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-        <button type="button" id="previewItfImport" class="secondary">Controleer import</button>
-        <button type="button" id="saveItfImport">Bewaar import op dit toestel</button>
-        <button type="button" id="clearItfImport" class="secondary">Wis lokale import</button>
-      </div>
-      <div id="itfImportStatus" class="status" aria-live="polite"></div>
-      <div id="itfImportPreview" class="muted" style="overflow-wrap:anywhere"></div>
-    </details>
 
     <div class="filters">
       <div class="full">
@@ -423,111 +409,6 @@
   const $ = id => document.getElementById(id);
 
   let tournaments = [];
-  let importedItfTournaments = loadImportedItfTournaments();
-
-  function loadImportedItfTournaments() {
-    try {
-      const saved = JSON.parse(localStorage.getItem("courtiq-itf-import") || "[]");
-      return Array.isArray(saved) ? saved : [];
-    } catch { return []; }
-  }
-
-  function parsePastedItfCalendar(rawText) {
-    const lines = String(rawText || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    const results = [];
-    const seen = new Set();
-    const categoryPattern = /\b(W(?:15|25|35|50|60|75|100))\b/i;
-    const datePattern = /(\d{1,2})\s+([A-Za-z]{3,9})\s+to\s+(\d{1,2})\s+([A-Za-z]{3,9})(?:\s+(\d{4}))?/i;
-    const monthMap = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-    const iso = (day, month, year) => {
-      const m = monthMap[String(month).slice(0,3).toLowerCase()];
-      return m ? String(year).padStart(4,"0")+"-"+String(m).padStart(2,"0")+"-"+String(Number(day)).padStart(2,"0") : null;
-    };
-    for (const line of lines) {
-      const cat = line.match(categoryPattern);
-      const date = line.match(datePattern);
-      if (!cat || !date) continue;
-      const pieces = line.split(/\t+|\s*\|\s*/).map(part => part.trim()).filter(Boolean);
-      const dateCell = pieces.find(part => /Date:/i.test(part) && datePattern.test(part)) || line;
-      const hostCell = pieces.find(part => /Host Nation:/i.test(part)) || "";
-      const cityCell = pieces.find(part => /City\/Town:/i.test(part)) || "";
-      const surfaceCell = pieces.find(part => /Surface:/i.test(part)) || "";
-      const statusCell = pieces.find(part => /Status:/i.test(part)) || "";
-      const categoryCell = pieces.find(part => /Category:/i.test(part)) || cat[1];
-      const nameCell = pieces[0] || line;
-      const name = nameCell.replace(/^(?:Name:\s*)/i,"").replace(/\s+/g," ").trim();
-      const year = Number(date[5] || (new Date().getFullYear()));
-      const startDate = iso(date[1],date[2],year);
-      let endYear = year;
-      const startMonth = monthMap[date[2].slice(0,3).toLowerCase()];
-      const endMonth = monthMap[date[4].slice(0,3).toLowerCase()];
-      if (startMonth && endMonth && endMonth < startMonth) endYear++;
-      const endDate = iso(date[3],date[4],endYear);
-      const country = hostCell.replace(/^Host Nation:\s*/i,"").trim();
-      const city = cityCell.replace(/^City\/Town:\s*/i,"").trim();
-      const surface = surfaceCell.replace(/^Surface:\s*/i,"").trim();
-      const status = statusCell.replace(/^Status:\s*/i,"").trim();
-      const category = categoryCell.replace(/^Category:\s*/i,"").trim() || cat[1].toUpperCase();
-      const cleanName = name.replace(/\s+(?:W(?:15|25|35|50|60|75|100))\b.*$/i,"").trim() || name;
-      const key = [cleanName,startDate,category].join("|").toLowerCase();
-      if (!cleanName || !startDate || seen.has(key)) continue;
-      seen.add(key);
-      results.push({ id:"itf-import-"+key, name:cleanName, date:startDate, endDate, tier:category, category, surface, country, city, status, link:"https://www.itftennis.com/en/tournament-calendar/womens-world-tennis-tour-calendar/", source:"ITF handmatige browserimport" });
-    }
-    return results;
-  }
-
-  function mergeImportedTournaments(items) {
-    const all = [...(Array.isArray(items) ? items : []), ...importedItfTournaments];
-    const seen = new Set();
-    return all.filter(item => {
-      const key = String(item.id || (item.name+"|"+item.date)).toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  function wireItfImport() {
-    const status = $("itfImportStatus");
-    const preview = $("itfImportPreview");
-    const parse = () => parsePastedItfCalendar($("itfImportText").value);
-    $("previewItfImport")?.addEventListener("click", () => {
-      const rows = parse();
-      status.className = rows.length ? "status success" : "status error";
-      status.textContent = rows.length ? rows.length+" toernooien herkend. Controleer de voorbeelden hieronder." : "Geen toernooien herkend. Plak de tabel als tekst met kolommen gescheiden door tabs of |.";
-      preview.textContent = rows.slice(0,8).map(item => item.name+" — "+item.tier+" — "+item.date+" — "+item.country+" — "+item.surface).join("\\n");
-    });
-    $("saveItfImport")?.addEventListener("click", () => {
-      const rows = parse();
-      if (!rows.length) {
-        status.className = "status error";
-        status.textContent = "Er zijn geen herkenbare toernooien om te bewaren.";
-        return;
-      }
-      importedItfTournaments = rows;
-      localStorage.setItem("courtiq-itf-import", JSON.stringify(rows));
-      tournaments = mergeImportedTournaments(tournaments.filter(item => !String(item.id || "").startsWith("itf-import-")));
-      populateCountries();
-      populateEntryTournamentSelect();
-      render();
-      status.className = "status success";
-      status.textContent = rows.length+" toernooien lokaal bewaard op dit toestel en toegevoegd aan de kalender.";
-      preview.textContent = rows.slice(0,8).map(item => item.name+" — "+item.tier+" — "+item.date).join("\\n");
-    });
-    $("clearItfImport")?.addEventListener("click", () => {
-      importedItfTournaments = [];
-      localStorage.removeItem("courtiq-itf-import");
-      tournaments = tournaments.filter(item => !String(item.id || "").startsWith("itf-import-"));
-      populateCountries();
-      populateEntryTournamentSelect();
-      render();
-      status.className = "status";
-      status.textContent = "Lokale ITF-import gewist.";
-      preview.textContent = "";
-    });
-  }
-
   let showSavedOnly = false;
   let viewMode = "list";
   let visibleCount = 30;
@@ -1018,7 +899,7 @@
     if (!response.ok) throw new Error(`Kalender ophalen mislukt: HTTP ${response.status}`);
 
     const result = await response.json();
-    tournaments = mergeImportedTournaments(Array.isArray(result.tournaments) ? result.tournaments : []);
+    tournaments = Array.isArray(result.tournaments) ? result.tournaments : [];
 
     populateCountries();
     populateEntryTournamentSelect();
@@ -1038,7 +919,6 @@
     }
   }
 
-  wireItfImport();
 
   $("saveProfile").addEventListener("click", saveProfile);
   $("findRanking").addEventListener("click", lookupPlayerByRanking);
