@@ -424,7 +424,7 @@ async function fetchWtaRankings() {
 
 app.get("/api/wta-player-search", async (req, res) => {
   const query = String(req.query?.q || "").trim();
-  if (query.length < 2) return res.json({ ok: true, players: [] });
+  if (query.length < 2 && !/^\\d+$/.test(query)) return res.json({ ok: true, players: [] });
   try {
     const players = await fetchWtaRankings();
     const requestedRank = /^\d+$/.test(query) ? Number(query) : null;
