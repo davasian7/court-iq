@@ -286,65 +286,85 @@ function normalizePlayerName(value) {
     .trim();
 }
 
+function extractWtaRows(payload) {
+  const found = [];
+  const seen = new Set();
+  function walk(value, depth = 0) {
+    if (!value || depth > 7) return;
+    if (Array.isArray(value)) { value.forEach(item => walk(item, depth + 1)); return; }
+    if (typeof value !== "object") return;
+    const player = value.player && typeof value.player === "object" ? value.player : value;
+    const name = player.fullName || player.name || player.playerName || value.playerName || value.full_name || "";
+    const rankValue = value.ranking ?? value.rank ?? value.position ?? value.currentRank ?? value.currentRanking ?? value.curRank?.rank ?? value.curRank?.position;
+    const ranking = Number(rankValue || 0);
+    if (name && Number.isFinite(ranking) && ranking > 0) {
+      const key = normalizePlayerName(name);
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        found.push({
+          name: String(name).trim(), normalizedName: key, ranking,
+          points: Number(value.points ?? value.rankingPoints ?? value.ranking_points ?? 0) || null,
+          country: player.countryCode || player.countryAcr || player.country?.acronym || "",
+          rankingDate: value.rankedAt || value.rankingDate || value.ranking_date || value.date || null,
+          profileUrl: player.id ? "https://www.wtatennis.com/players/" + player.id : null
+        });
+      }
+    }
+    Object.values(value).forEach(child => { if (child && typeof child === "object") walk(child, depth + 1); });
+  }
+  walk(payload);
+  return found;
+}
+
 async function fetchWtaRankings() {
   if (wtaRankingCache.players.length && wtaRankingCache.fetchedAt &&
-      Date.now() - wtaRankingCache.fetchedAt < WTA_RANKING_CACHE_MS) {
-    return wtaRankingCache.players;
-  }
+      Date.now() - wtaRankingCache.fetchedAt < WTA_RANKING_CACHE_MS) return wtaRankingCache.players;
 
-  const players = [];
-  const pageSize = 100;
-  const maxPages = 20;
+  const candidates = [
+    "https://api.wtatennis.com/tennis/players/ranked?type=rankSingles&metric=singles&page=0&pageSize=1000",
+    "https://api.wtatennis.com/tennis/players/ranked?type=rankSingles&metric=singles&page=0&pageSize=100&sort=asc",
+    "https://www.wtatennis.com/rankings/singles"
+  ];
+  let lastError = "Geen bruikbare WTA-rankinggegevens gevonden.";
 
-  for (let page = 0; page < maxPages; page++) {
-    const url = new URL(WTA_RANKINGS_URL);
-    url.searchParams.set("type", "rankSingles");
-    url.searchParams.set("metric", "singles");
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("pageSize", String(pageSize));
-    url.searchParams.set("sort", "asc");
-
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; COURT-IQ/1.0; public-ranking-reader)",
-        "Accept": "application/json, text/plain, */*",
-        "Referer": "https://www.wtatennis.com/rankings/singles"
-      },
-      signal: AbortSignal.timeout(15000)
-    });
-    if (!response.ok) {
-      throw new Error("De officiële WTA-ranking gaf HTTP " + response.status + " terug.");
-    }
-
-    const payload = await response.json();
-    const rows = Array.isArray(payload) ? payload : Array.isArray(payload.content) ? payload.content : [];
-    if (!rows.length) {
-      if (page === 0) throw new Error("De officiële WTA-ranking bevat geen herkenbare spelersgegevens.");
-      break;
-    }
-
-    for (const row of rows) {
-      const player = row.player || row;
-      const name = player.fullName || player.name || row.playerName || "";
-      const ranking = Number(row.ranking || row.rank || row.position || 0);
-      if (!name || !Number.isFinite(ranking) || ranking < 1) continue;
-      players.push({
-        name,
-        normalizedName: normalizePlayerName(name),
-        ranking,
-        points: Number(row.points || row.rankingPoints || 0) || null,
-        country: player.countryCode || player.countryAcr || "",
-        rankingDate: row.rankedAt || row.rankingDate || row.date || null,
-        profileUrl: player.id ? "https://www.wtatennis.com/players/" + player.id : null
+  for (const sourceUrl of candidates) {
+    try {
+      const response = await fetch(sourceUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; COURT-IQ/1.0; public-ranking-reader)",
+          "Accept": "application/json, text/html, */*",
+          "Referer": "https://www.wtatennis.com/rankings/singles"
+        },
+        signal: AbortSignal.timeout(20000)
       });
-    }
-
-    if (rows.length < pageSize) break;
+      if (!response.ok) { lastError = "De officiële WTA-bron gaf HTTP " + response.status + " terug."; continue; }
+      const body = await response.text();
+      let payload;
+      try { payload = JSON.parse(body); }
+      catch {
+        const cheerio = require("cheerio");
+        const $ = cheerio.load(body);
+        const extracted = [];
+        $("script").each((_, element) => {
+          const script = $(element).html() || "";
+          try { extracted.push(...extractWtaRows(JSON.parse(script))); } catch {}
+        });
+        if (extracted.length) {
+          wtaRankingCache = { players: extracted, fetchedAt: Date.now() };
+          return extracted;
+        }
+        lastError = "De WTA-pagina is bereikbaar, maar de rankinggegevens zijn niet herkenbaar in de HTML.";
+        continue;
+      }
+      const players = extractWtaRows(payload);
+      if (players.length) {
+        wtaRankingCache = { players, fetchedAt: Date.now() };
+        return players;
+      }
+      lastError = "De WTA-bron gaf gegevens terug, maar naam en rankingvelden konden niet worden herkend.";
+    } catch (error) { lastError = error.message || lastError; }
   }
-
-  if (!players.length) throw new Error("De WTA-website heeft geen bruikbare rankingregels teruggegeven.");
-  wtaRankingCache = { players, fetchedAt: Date.now() };
-  return players;
+  throw new Error(lastError);
 }
 
 app.post("/api/wta-entry-rankings", async (req, res) => {
