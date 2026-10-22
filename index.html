@@ -371,6 +371,23 @@
     <div id="lastUpdated" class="status"></div>
   </section>
 
+  <section class="panel" id="entryAnalysis">
+    <h2>Inschrijvingslijst analyseren</h2>
+    <p class="muted">Kies een toernooi en plak de namen, rankings en eventuele statussen uit een officiële ITF- of WTA-inschrijvingslijst. De kalender alleen bevat geen volledige acceptance lists.</p>
+    <label for="entryTournament">Toernooi</label>
+    <select id="entryTournament"><option value="">Laad eerst de toernooikalender</option></select>
+    <label for="entrySourceUrl">Officiële bronlink (optioneel)</label>
+    <input id="entrySourceUrl" type="url" placeholder="https://...">
+    <label for="entryAsOf">Datum van de inschrijvingslijst</label>
+    <input id="entryAsOf" type="date">
+    <label for="entryPaste">Inschrijvingsgegevens plakken</label>
+    <textarea id="entryPaste" rows="6" placeholder="Plak hier rijen uit Excel of een CSV. Voorbeeld:\nPlayer\tRanking\tStatus\nJane Example\t450\tMain Draw\nAlex Example\t620\tQualifying\nTaylor Example\t710\tAlternate" style="width:100%;min-height:150px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px;font:inherit"></textarea>
+    <p class="muted">Verwachte kolommen: speelsternaam, ranking en optioneel status. Tabgescheiden gegevens uit Excel werken ook. Gebruik alleen gegevens die je mag raadplegen.</p>
+    <button id="analyzeEntries">Analyseer inschrijvingslijst</button>
+    <div id="entryStatus" class="status" aria-live="polite"></div>
+    <div id="entryResults"></div>
+  </section>
+
   <section>
     <div class="section-head">
       <h2 id="resultsTitle">Toernooien <span id="resultsCount" class="results-count" aria-live="polite">(0)</span></h2>
@@ -440,6 +457,138 @@
       $("playerLookupStatus").textContent = "WTA-ranking kon niet worden opgehaald: " + error.message;
       lastLookupName = "";
     }
+  }
+
+  let entryLists = loadEntryLists();
+
+  function loadEntryLists() {
+    try { return JSON.parse(localStorage.getItem("courtiq-entry-lists") || "{}"); }
+    catch { return {}; }
+  }
+
+  function persistEntryLists() {
+    localStorage.setItem("courtiq-entry-lists", JSON.stringify(entryLists));
+  }
+
+  function populateEntryTournamentSelect() {
+    const select = $("entryTournament");
+    const previous = select.value;
+    select.replaceChildren();
+    const placeholder = element("option", "", "Selecteer een toernooi");
+    placeholder.value = "";
+    select.appendChild(placeholder);
+    tournaments.slice().sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))).forEach(item => {
+      const option = element("option", "", (item.name || "Toernooi") + " — " + formatDate(item));
+      option.value = String(item.id != null ? item.id : (String(item.name) + "|" + String(item.date || "")));
+      select.appendChild(option);
+    });
+    if (previous && [...select.options].some(option => option.value === previous)) select.value = previous;
+    loadSelectedEntryList();
+  }
+
+  function selectedTournamentKey() { return $("entryTournament").value; }
+
+  function loadSelectedEntryList() {
+    const saved = entryLists[selectedTournamentKey()];
+    $("entryPaste").value = saved ? saved.raw || "" : "";
+    $("entrySourceUrl").value = saved ? saved.sourceUrl || "" : "";
+    $("entryAsOf").value = saved ? saved.asOf || "" : "";
+    $("entryStatus").textContent = saved ? "Eerder geïmporteerde lijst geladen op dit toestel." : "";
+    $("entryResults").replaceChildren();
+    if (saved && saved.raw) renderEntryAnalysis(saved, false);
+  }
+
+  function parseEntryRows(raw) {
+    const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length < 2) throw new Error("Plak minstens een kopregel en één speelster.");
+    const delimiter = lines[0].includes("\t") ? "\t" : (lines[0].includes(";") ? ";" : ",");
+    const split = line => line.split(delimiter).map(value => value.trim().replace(/^["']|["']$/g, ""));
+    const header = split(lines[0]).map(value => value.toLowerCase());
+    const nameIndex = header.findIndex(value => /name|player|speelster|naam/.test(value));
+    const rankIndex = header.findIndex(value => /rank|ranking|positie/.test(value));
+    const statusIndex = header.findIndex(value => /status|entry|acceptance|categorie/.test(value));
+    if (nameIndex < 0 || rankIndex < 0) throw new Error("Geen herkenbare kolommen gevonden. Gebruik een kopregel met 'Player/Name' en 'Ranking/Rank'.");
+    return lines.slice(1).map(split).map(row => ({
+      name: row[nameIndex] || "",
+      ranking: Number(String(row[rankIndex] || "").replace(/[^0-9]/g, "")) || null,
+      status: statusIndex >= 0 ? (row[statusIndex] || "Onbekend") : "Onbekend"
+    })).filter(row => row.name && row.ranking);
+  }
+
+  function renderEntryAnalysis(saved, announce = true) {
+    const targetRank = Number($("ranking").value);
+    const output = $("entryResults");
+    output.replaceChildren();
+    let rows;
+    try { rows = parseEntryRows(saved.raw); }
+    catch (error) {
+      $("entryStatus").className = "status error";
+      $("entryStatus").textContent = error.message;
+      return;
+    }
+    const sorted = rows.slice().sort((a, b) => a.ranking - b.ranking);
+    const rankPosition = targetRank ? sorted.filter(row => row.ranking < targetRank).length + 1 : null;
+    const sourceLink = saved.sourceUrl && /^https?:\/\//i.test(saved.sourceUrl) ? saved.sourceUrl : "";
+    const summary = element("div", "panel");
+    summary.style.marginTop = "12px";
+    summary.appendChild(element("h3", "", "Inschrijvingslijst: " + rows.length + " speelsters met ranking"));
+    summary.appendChild(element("p", "", targetRank
+      ? "Jouw speelster staat op ranking #" + targetRank + ". In deze geïmporteerde lijst staan " + (rankPosition - 1) + " speelsters met een betere ranking."
+      : "Vul eerst de huidige ranking in het speelsterprofiel in om haar positie in deze lijst te vergelijken."));
+    summary.appendChild(element("p", "muted", "Dit is een vergelijking met de geplakte lijst, geen bevestiging van toelating. De uiteindelijke acceptatie hangt ook af van deadlines, rankingpeildatum, categorie, quota, protected ranking, wildcards en terugtrekkingen."));
+    if (saved.asOf) summary.appendChild(element("p", "muted", "Lijstpeildatum: " + saved.asOf));
+    if (sourceLink) {
+      const link = element("a", "", "Officiële bron openen ↗");
+      link.href = sourceLink; link.target = "_blank"; link.rel = "noopener noreferrer";
+      summary.appendChild(link);
+    }
+    output.appendChild(summary);
+    const table = document.createElement("table");
+    table.style.width = "100%"; table.style.borderCollapse = "collapse";
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    ["#", "Speelster", "Ranking", "Status"].forEach(label => {
+      const th = element("th", "", label);
+      th.style.textAlign = "left"; th.style.padding = "8px 5px"; th.style.borderBottom = "1px solid var(--border)";
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow); table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    sorted.forEach((row, index) => {
+      const tr = document.createElement("tr");
+      [String(index + 1), row.name, "#" + row.ranking, row.status].forEach(value => {
+        const td = element("td", "", value);
+        td.style.padding = "8px 5px"; td.style.borderBottom = "1px solid var(--border)";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    const wrapper = element("div", "");
+    wrapper.style.overflowX = "auto"; wrapper.appendChild(table); output.appendChild(wrapper);
+    if (announce) {
+      $("entryStatus").className = "status success";
+      $("entryStatus").textContent = "Lijst verwerkt: " + rows.length + " speelsters met een leesbare ranking. Bewaard op dit toestel.";
+    }
+  }
+
+  function analyzeEntries() {
+    const key = selectedTournamentKey();
+    if (!key) {
+      $("entryStatus").className = "status error";
+      $("entryStatus").textContent = "Selecteer eerst een toernooi.";
+      return;
+    }
+    const raw = $("entryPaste").value.trim();
+    if (!raw) {
+      $("entryStatus").className = "status error";
+      $("entryStatus").textContent = "Plak eerst een officiële inschrijvingslijst.";
+      return;
+    }
+    const saved = { raw, sourceUrl: $("entrySourceUrl").value.trim(), asOf: $("entryAsOf").value, importedAt: new Date().toISOString() };
+    entryLists[key] = saved;
+    persistEntryLists();
+    renderEntryAnalysis(saved);
   }
 
   function loadProfile() {
@@ -808,6 +957,7 @@
     tournaments = Array.isArray(result.tournaments) ? result.tournaments : [];
 
     populateCountries();
+    populateEntryTournamentSelect();
     render();
 
     if (result.lastRefresh) {
@@ -823,6 +973,13 @@
       $("dataStatus").textContent = "Nog geen gegevens geladen. Tik op Vernieuwen.";
     }
   }
+
+  $("entryTournament").addEventListener("change", loadSelectedEntryList);
+  $("analyzeEntries").addEventListener("click", analyzeEntries);
+  $("ranking").addEventListener("change", () => {
+    const saved = entryLists[selectedTournamentKey()];
+    if (saved && saved.raw) renderEntryAnalysis(saved, false);
+  });
 
   $("playerName").addEventListener("input", () => {
     clearTimeout(playerLookupTimer);
