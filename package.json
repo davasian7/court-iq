@@ -2,7 +2,7 @@
   "name": "court-iq",
   "version": "1.0.0",
   "private": true,
-  "description": "COURT IQ ITF tournament data service",
+  "description": "COURT IQ public tennis website scraper",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
