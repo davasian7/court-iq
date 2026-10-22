@@ -309,7 +309,7 @@
       <button id="refresh" class="secondary">↻ Vernieuwen</button>
     </div>
 
-    <p class="muted">Haal de toernooikalender rechtstreeks op van de openbare ITF-website.</p>
+    <p class="muted">De kalender wordt uit de openbare ITF-website gelezen en automatisch elke 5 minuten vernieuwd zolang de app open is. Je kunt ook handmatig vernieuwen.</p>
 
     <div class="filters">
       <div class="full">
@@ -1049,6 +1049,13 @@
   $("playerName").addEventListener("change", lookupPlayer);
   $("saveProfile").addEventListener("click", saveProfile);
   $("refresh").addEventListener("click", () => refresh(true));
+
+  // Refresh from the official-site scraper every five minutes while the app is open.
+  // Mobile browsers may suspend timers while the page is in the background.
+  const AUTO_REFRESH_MS = 5 * 60 * 1000;
+  setInterval(() => {
+    if (document.visibilityState === "visible") refresh(false);
+  }, AUTO_REFRESH_MS);
   $("viewMode").addEventListener("click", () => {
     viewMode = viewMode === "list" ? "grouped" : "list";
     visibleCount = 30;
