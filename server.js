@@ -23,6 +23,7 @@ app.use((req, res, next) => {
 let tournaments = [];
 let lastRefresh = null;
 let lastError = null;
+let calendarDiagnostics = { checkedAt: null, httpStatus: null, contentType: null, htmlLength: null, title: null, scriptCount: null, tableRowCount: null, hasNextData: null, hasTournamentText: null };
 
 function normalizeTournament(item) {
   return {
@@ -192,7 +193,22 @@ async function fetchCalendar(year) {
     throw new Error("De openbare ITF-kalender gaf HTTP " + response.status + " terug voor " + year + ".");
   }
   const html = await response.text();
+  const cheerio = require("cheerio");
+  const diagnosticPage = cheerio.load(html);
+  calendarDiagnostics = {
+    checkedAt: new Date().toISOString(),
+    year,
+    httpStatus: response.status,
+    contentType: response.headers.get("content-type"),
+    htmlLength: html.length,
+    title: diagnosticPage("title").first().text().trim().slice(0, 180),
+    scriptCount: diagnosticPage("script").length,
+    tableRowCount: diagnosticPage("tr").length,
+    hasNextData: html.includes("__NEXT_DATA__"),
+    hasTournamentText: /W100|W75|W50|W35|W25|W15|tournament calendar/i.test(html)
+  };
   const events = parseCalendarHtml(html, year);
+  calendarDiagnostics.parsedTournamentCount = events.length;
   if (!events.length) {
     throw new Error("De openbare ITF-kalender voor " + year + " is bereikbaar, maar de toernooien konden niet automatisch uit de pagina worden gelezen. De bestaande gegevens blijven behouden.");
   }
@@ -289,7 +305,8 @@ app.get("/api/status", (req, res) => {
     lastRefresh,
     tournamentCount: tournaments.length,
     liveDataLoaded: tournaments.length > 0,
-    lastError
+    lastError,
+    calendarDiagnostics
   });
 });
 
