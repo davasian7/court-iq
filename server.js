@@ -395,15 +395,27 @@ app.get("/api/wta-player-search", async (req, res) => {
   try {
     const players = await fetchWtaRankings();
     const normalizedQuery = normalizePlayerName(query);
-    const starts = [], contains = [];
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+    const starts = [], tokenMatches = [], contains = [];
     for (const player of players) {
-      if (player.normalizedName.startsWith(normalizedQuery)) starts.push(player);
-      else if (player.normalizedName.includes(normalizedQuery)) contains.push(player);
+      const normalizedName = player.normalizedName;
+      const nameTokens = normalizedName.split(" ");
+      if (normalizedName.startsWith(normalizedQuery)) {
+        starts.push(player);
+      } else if (queryTokens.every(qToken => nameTokens.some(nameToken => nameToken.startsWith(qToken)))) {
+        tokenMatches.push(player);
+      } else if (normalizedName.includes(normalizedQuery)) {
+        contains.push(player);
+      }
     }
-    const results = [...starts, ...contains].slice(0, 12).map(player => ({
-      name: player.name, ranking: player.ranking, country: player.country,
-      points: player.points, profileUrl: player.profileUrl
-    }));
+    // Keep the best-ranked players first within each match group, but allow
+    // searching a partial first name, surname, or multiple partial name parts.
+    const results = [...starts, ...tokenMatches, ...contains]
+      .slice(0, 20)
+      .map(player => ({
+        name: player.name, ranking: player.ranking, country: player.country,
+        points: player.points, profileUrl: player.profileUrl
+      }));
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true, source: "Officiële WTA-ranking", count: results.length, players: results });
   } catch (error) {
