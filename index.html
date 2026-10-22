@@ -433,11 +433,11 @@
   }
 
   function parsePastedItfCalendar(rawText) {
-    const lines = String(rawText || "").split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+    const lines = String(rawText || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const results = [];
     const seen = new Set();
-    const categoryPattern = /\\b(W(?:15|25|35|50|60|75|100))\\b/i;
-    const datePattern = /(\\d{1,2})\\s+([A-Za-z]{3,9})\\s+to\\s+(\\d{1,2})\\s+([A-Za-z]{3,9})(?:\\s+(\\d{4}))?/i;
+    const categoryPattern = /\b(W(?:15|25|35|50|60|75|100))\b/i;
+    const datePattern = /(\d{1,2})\s+([A-Za-z]{3,9})\s+to\s+(\d{1,2})\s+([A-Za-z]{3,9})(?:\s+(\d{4}))?/i;
     const monthMap = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
     const iso = (day, month, year) => {
       const m = monthMap[String(month).slice(0,3).toLowerCase()];
@@ -447,15 +447,15 @@
       const cat = line.match(categoryPattern);
       const date = line.match(datePattern);
       if (!cat || !date) continue;
-      const pieces = line.split(/\\t+|\\s*\\|\\s*/).map(part => part.trim()).filter(Boolean);
+      const pieces = line.split(/\t+|\s*\|\s*/).map(part => part.trim()).filter(Boolean);
       const dateCell = pieces.find(part => /Date:/i.test(part) && datePattern.test(part)) || line;
       const hostCell = pieces.find(part => /Host Nation:/i.test(part)) || "";
-      const cityCell = pieces.find(part => /City\\/Town:/i.test(part)) || "";
+      const cityCell = pieces.find(part => /City\/Town:/i.test(part)) || "";
       const surfaceCell = pieces.find(part => /Surface:/i.test(part)) || "";
       const statusCell = pieces.find(part => /Status:/i.test(part)) || "";
       const categoryCell = pieces.find(part => /Category:/i.test(part)) || cat[1];
       const nameCell = pieces[0] || line;
-      const name = nameCell.replace(/^(?:Name:\\s*)/i,"").replace(/\\s+/g," ").trim();
+      const name = nameCell.replace(/^(?:Name:\s*)/i,"").replace(/\s+/g," ").trim();
       const year = Number(date[5] || (new Date().getFullYear()));
       const startDate = iso(date[1],date[2],year);
       let endYear = year;
@@ -463,12 +463,12 @@
       const endMonth = monthMap[date[4].slice(0,3).toLowerCase()];
       if (startMonth && endMonth && endMonth < startMonth) endYear++;
       const endDate = iso(date[3],date[4],endYear);
-      const country = hostCell.replace(/^Host Nation:\\s*/i,"").trim();
-      const city = cityCell.replace(/^City\\/Town:\\s*/i,"").trim();
-      const surface = surfaceCell.replace(/^Surface:\\s*/i,"").trim();
-      const status = statusCell.replace(/^Status:\\s*/i,"").trim();
-      const category = categoryCell.replace(/^Category:\\s*/i,"").trim() || cat[1].toUpperCase();
-      const cleanName = name.replace(/\\s+(?:W(?:15|25|35|50|60|75|100))\\b.*$/i,"").trim() || name;
+      const country = hostCell.replace(/^Host Nation:\s*/i,"").trim();
+      const city = cityCell.replace(/^City\/Town:\s*/i,"").trim();
+      const surface = surfaceCell.replace(/^Surface:\s*/i,"").trim();
+      const status = statusCell.replace(/^Status:\s*/i,"").trim();
+      const category = categoryCell.replace(/^Category:\s*/i,"").trim() || cat[1].toUpperCase();
+      const cleanName = name.replace(/\s+(?:W(?:15|25|35|50|60|75|100))\b.*$/i,"").trim() || name;
       const key = [cleanName,startDate,category].join("|").toLowerCase();
       if (!cleanName || !startDate || seen.has(key)) continue;
       seen.add(key);
