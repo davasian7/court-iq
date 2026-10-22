@@ -202,6 +202,8 @@ async function fetchCalendar(year) {
     contentType: response.headers.get("content-type"),
     htmlLength: html.length,
     title: diagnosticPage("title").first().text().trim().slice(0, 180),
+    htmlPreview: html.replace(/\\s+/g, " ").trim().slice(0, 500),
+    finalUrl: response.url,
     scriptCount: diagnosticPage("script").length,
     tableRowCount: diagnosticPage("tr").length,
     hasNextData: html.includes("__NEXT_DATA__"),
