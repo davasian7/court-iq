@@ -427,6 +427,21 @@ app.get("/api/wta-player-search", async (req, res) => {
   if (query.length < 2) return res.json({ ok: true, players: [] });
   try {
     const players = await fetchWtaRankings();
+    const requestedRank = /^\\d+$/.test(query) ? Number(query) : null;
+    if (requestedRank !== null) {
+      const exact = players.find(player => player.ranking === requestedRank);
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({
+        ok: true,
+        source: "Officiële WTA-ranking",
+        count: exact ? 1 : 0,
+        players: exact ? [{
+          name: exact.name, ranking: exact.ranking, country: exact.country,
+          points: exact.points, profileUrl: exact.profileUrl
+        }] : []
+      });
+    }
+
     const normalizedQuery = normalizePlayerName(query);
     const queryTokens = normalizedQuery.split(" ").filter(Boolean);
     const starts = [], tokenMatches = [], contains = [];
