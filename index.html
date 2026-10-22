@@ -496,7 +496,7 @@
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "WTA-ranking ophalen mislukt.");
       saved.wtaMatches = result.matches; saved.wtaFetchedAt = result.fetchedAt; saved.wtaSourceUrl = result.sourceUrl;
-      entryLists[selectedTournamentKey()] = saved; persistEntryLists(); renderEntryAnalysis(saved, false);
+      entryLists[tournamentKey] = saved; persistEntryLists(); renderEntryAnalysis(saved, false);
       const found = result.matches.filter(match => match.found).length;
       $("entryStatus").className = found ? "status success" : "status";
       $("entryStatus").textContent = "WTA-ranking bijgewerkt: " + found + " van " + rows.length + " speelsters gevonden. Bron: officiële WTA-website.";
@@ -526,7 +526,9 @@
     summary.style.marginTop = "12px";
     summary.appendChild(element("h3", "", "Inschrijvingslijst: " + rows.length + " speelsters · " + rankedRows.length + " met ranking"));
     summary.appendChild(element("p", "", targetRank
-      ? "Jouw speelster staat op ranking #" + targetRank + ". In deze geïmporteerde lijst staan " + (rankPosition - 1) + " speelsters met een betere ranking."
+      ? (rankedRows.length
+          ? "Jouw speelster staat op ranking #" + targetRank + ". In deze geïmporteerde lijst staan " + (rankPosition - 1) + " speelsters met een betere ranking."
+          : "Er zijn nog geen WTA-rankings beschikbaar om deze lijst te vergelijken.")
       : "Vul eerst de huidige ranking in het speelsterprofiel in om haar positie in deze lijst te vergelijken."));
     summary.appendChild(element("p", "muted", "Dit is een vergelijking met de geplakte lijst, geen bevestiging van toelating. De uiteindelijke acceptatie hangt ook af van deadlines, rankingpeildatum, categorie, quota, protected ranking, wildcards en terugtrekkingen."));
     if (saved.asOf) summary.appendChild(element("p", "muted", "Lijstpeildatum: " + saved.asOf));
@@ -889,7 +891,11 @@
       const savedEntry = entryLists[entryKey];
       if (savedEntry && savedEntry.raw) {
         try {
-          const players = parseEntryRows(savedEntry.raw).slice().sort((a, b) => a.ranking - b.ranking);
+          const matches = new Map((savedEntry.wtaMatches || []).map(match => [normalizeRankingName(match.requestedName), match]));
+          const players = parseEntryRows(savedEntry.raw).map(player => {
+            const match = matches.get(normalizeRankingName(player.name));
+            return { ...player, ranking: match && match.found ? match.player.ranking : player.ranking };
+          }).slice().sort((a, b) => (a.ranking || Number.MAX_SAFE_INTEGER) - (b.ranking || Number.MAX_SAFE_INTEGER));
           entryDetails.appendChild(element("p", "muted", players.length + " speelsters · lijstpeildatum: " + (savedEntry.asOf || "niet opgegeven")));
           const playerTable = document.createElement("table");
           playerTable.style.width = "100%";
@@ -903,7 +909,7 @@
           playerTable.appendChild(head);
           players.forEach((player, index) => {
             const tr = document.createElement("tr");
-            [String(index + 1), player.name, "#" + player.ranking, player.status].forEach(value => {
+            [String(index + 1), player.name, player.ranking ? "#" + player.ranking : "Niet gevonden", player.status].forEach(value => {
               const td = element("td", "", value);
               td.style.padding = "7px 4px"; td.style.borderBottom = "1px solid var(--border)";
               tr.appendChild(td);
