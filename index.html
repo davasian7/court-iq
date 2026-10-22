@@ -883,6 +883,66 @@
 
       card.appendChild(element("p", "", "📅 " + formatDate(item)));
 
+      const entryKey = String(item.id != null ? item.id : (String(item.name) + "|" + String(item.date || "")));
+      const entryDetails = document.createElement("details");
+      entryDetails.style.marginTop = "12px";
+      const entrySummary = element("summary", "", "Bekijk inschrijvingslijst / speelsters");
+      entrySummary.style.cursor = "pointer";
+      entrySummary.style.color = "var(--green)";
+      entrySummary.style.fontWeight = "750";
+      entrySummary.style.padding = "8px 0";
+      entryDetails.appendChild(entrySummary);
+      const savedEntry = entryLists[entryKey];
+      if (savedEntry && savedEntry.raw) {
+        try {
+          const players = parseEntryRows(savedEntry.raw).slice().sort((a, b) => a.ranking - b.ranking);
+          entryDetails.appendChild(element("p", "muted", players.length + " speelsters · lijstpeildatum: " + (savedEntry.asOf || "niet opgegeven")));
+          const playerTable = document.createElement("table");
+          playerTable.style.width = "100%";
+          playerTable.style.borderCollapse = "collapse";
+          const head = document.createElement("tr");
+          ["#", "Speelster", "Ranking", "Status"].forEach(label => {
+            const th = element("th", "", label);
+            th.style.textAlign = "left"; th.style.padding = "7px 4px"; th.style.borderBottom = "1px solid var(--border)";
+            head.appendChild(th);
+          });
+          playerTable.appendChild(head);
+          players.forEach((player, index) => {
+            const tr = document.createElement("tr");
+            [String(index + 1), player.name, "#" + player.ranking, player.status].forEach(value => {
+              const td = element("td", "", value);
+              td.style.padding = "7px 4px"; td.style.borderBottom = "1px solid var(--border)";
+              tr.appendChild(td);
+            });
+            playerTable.appendChild(tr);
+          });
+          const tableWrap = element("div", "");
+          tableWrap.style.overflowX = "auto";
+          tableWrap.appendChild(playerTable);
+          entryDetails.appendChild(tableWrap);
+          if (savedEntry.sourceUrl && /^https?:\/\//i.test(savedEntry.sourceUrl)) {
+            const official = element("a", "", "Officiële bron openen ↗");
+            official.href = savedEntry.sourceUrl; official.target = "_blank"; official.rel = "noopener noreferrer";
+            official.style.display = "inline-block"; official.style.marginTop = "10px";
+            entryDetails.appendChild(official);
+          }
+        } catch (error) {
+          entryDetails.appendChild(element("p", "status error", "De opgeslagen inschrijvingslijst kon niet worden gelezen: " + error.message));
+        }
+      } else {
+        entryDetails.appendChild(element("p", "muted", "Er is nog geen inschrijvingslijst geïmporteerd voor dit toernooi."));
+        const importButton = element("button", "secondary", "Importeer inschrijvingslijst");
+        importButton.style.marginTop = "6px";
+        importButton.addEventListener("click", () => {
+          const select = $("entryTournament");
+          if ([...select.options].some(option => option.value === entryKey)) select.value = entryKey;
+          loadSelectedEntryList();
+          $("entryAnalysis").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        entryDetails.appendChild(importButton);
+      }
+      card.appendChild(entryDetails);
+
       const location = [item.country, item.countryCode].filter(Boolean).join(" · ");
       if (location) card.appendChild(element("p", "", "📍 " + location));
       if (item.round) card.appendChild(element("p", "", "Categorie: " + item.round));
