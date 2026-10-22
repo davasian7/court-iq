@@ -389,6 +389,28 @@ async function fetchWtaRankings() {
   throw new Error(lastError);
 }
 
+app.get("/api/wta-player-search", async (req, res) => {
+  const query = String(req.query?.q || "").trim();
+  if (query.length < 2) return res.json({ ok: true, players: [] });
+  try {
+    const players = await fetchWtaRankings();
+    const normalizedQuery = normalizePlayerName(query);
+    const starts = [], contains = [];
+    for (const player of players) {
+      if (player.normalizedName.startsWith(normalizedQuery)) starts.push(player);
+      else if (player.normalizedName.includes(normalizedQuery)) contains.push(player);
+    }
+    const results = [...starts, ...contains].slice(0, 12).map(player => ({
+      name: player.name, ranking: player.ranking, country: player.country,
+      points: player.points, profileUrl: player.profileUrl
+    }));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, source: "Officiële WTA-ranking", count: results.length, players: results });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: error.message || "WTA-ranking ophalen mislukt." });
+  }
+});
+
 app.post("/api/wta-entry-rankings", async (req, res) => {
   const names = Array.isArray(req.body?.names) ? req.body.names : [];
   const cleanNames = [...new Set(names.map(name => String(name || "").trim()).filter(name => name.length >= 2))];
