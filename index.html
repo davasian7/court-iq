@@ -373,7 +373,7 @@
 
   <section class="panel" id="entryAnalysis">
     <h2>Inschrijvingslijst analyseren</h2>
-    <p class="muted">De toernooikalender wordt rechtstreeks van de openbare ITF-website gelezen. Automatisch uitlezen van acceptance lists wordt als volgende stap toegevoegd; tot die koppeling werkt, blijft de handmatige import beschikbaar.</p>
+    <p class="muted">De WTA-ranking wordt automatisch opgezocht voor speelsters in een geïmporteerde inschrijvingslijst. Plak de lijst en tik op Analyseer inschrijvingslijst. Acceptance lists zelf worden nog handmatig geïmporteerd.</p>
     <label for="entryTournament">Toernooi</label>
     <select id="entryTournament"><option value="">Laad eerst de toernooikalender</option></select>
     <label for="entrySourceUrl">Officiële bronlink (optioneel)</label>
@@ -596,6 +596,45 @@
           if (profile[id] !== undefined) $(id).value = profile[id];
         });
     } catch {}
+  }
+
+  let profileRankingLookupBusy = false;
+  let lastProfileRankingName = "";
+
+  async function lookupProfileWtaRanking() {
+    const name = $("playerName").value.trim();
+    if (name.length < 2 || name === lastProfileRankingName || profileRankingLookupBusy) return;
+    profileRankingLookupBusy = true;
+    lastProfileRankingName = name;
+    $("playerLookupStatus").className = "status";
+    $("playerLookupStatus").textContent = "Zoeken in de officiële WTA-ranking...";
+    try {
+      const response = await fetch(API + "/wta-entry-rankings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: [name] })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "WTA-ranking ophalen mislukt.");
+      const match = (result.matches || []).find(item => item.found);
+      if (!match) {
+        $("playerLookupStatus").className = "status";
+        $("playerLookupStatus").textContent = "Geen exacte WTA-match gevonden. Controleer de naam of vul de ranking handmatig in.";
+        return;
+      }
+      $("playerName").value = match.player.name;
+      $("ranking").value = match.player.ranking;
+      $("playerNationality").textContent = match.player.country ? "Land: " + match.player.country : "";
+      $("playerLookupStatus").className = "status success";
+      $("playerLookupStatus").textContent = "WTA-ranking gevonden: #" + match.player.ranking + ". Bewaar het profiel om deze ranking lokaal op te slaan.";
+      render();
+    } catch (error) {
+      $("playerLookupStatus").className = "status error";
+      $("playerLookupStatus").textContent = "WTA-ranking ophalen mislukt: " + error.message;
+      lastProfileRankingName = "";
+    } finally {
+      profileRankingLookupBusy = false;
+    }
   }
 
   function saveProfile() {
@@ -1043,6 +1082,8 @@
   });
 
   $("saveProfile").addEventListener("click", saveProfile);
+  $("playerName").addEventListener("change", lookupProfileWtaRanking);
+  $("playerName").addEventListener("keydown", event => { if (event.key === "Enter") lookupProfileWtaRanking(); });
   $("refresh").addEventListener("click", () => refresh(true));
 
   // Refresh from the official-site scraper every five minutes while the app is open.
