@@ -272,6 +272,123 @@ app.get("/api/tournaments", (req, res) => {
 
 
 
+const WTA_RANKINGS_URL = "https://api.wtatennis.com/tennis/players/ranked";
+let wtaRankingCache = { players: [], fetchedAt: null };
+const WTA_RANKING_CACHE_MS = 6 * 60 * 60 * 1000;
+
+function normalizePlayerName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+}
+
+async function fetchWtaRankings() {
+  if (wtaRankingCache.players.length && wtaRankingCache.fetchedAt &&
+      Date.now() - wtaRankingCache.fetchedAt < WTA_RANKING_CACHE_MS) {
+    return wtaRankingCache.players;
+  }
+
+  const players = [];
+  const pageSize = 100;
+  const maxPages = 20;
+
+  for (let page = 0; page < maxPages; page++) {
+    const url = new URL(WTA_RANKINGS_URL);
+    url.searchParams.set("type", "rankSingles");
+    url.searchParams.set("metric", "singles");
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(pageSize));
+    url.searchParams.set("sort", "asc");
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; COURT-IQ/1.0; public-ranking-reader)",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://www.wtatennis.com/rankings/singles"
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) {
+      throw new Error("De officiële WTA-ranking gaf HTTP " + response.status + " terug.");
+    }
+
+    const payload = await response.json();
+    const rows = Array.isArray(payload) ? payload : Array.isArray(payload.content) ? payload.content : [];
+    if (!rows.length) {
+      if (page === 0) throw new Error("De officiële WTA-ranking bevat geen herkenbare spelersgegevens.");
+      break;
+    }
+
+    for (const row of rows) {
+      const player = row.player || row;
+      const name = player.fullName || player.name || row.playerName || "";
+      const ranking = Number(row.ranking || row.rank || row.position || 0);
+      if (!name || !Number.isFinite(ranking) || ranking < 1) continue;
+      players.push({
+        name,
+        normalizedName: normalizePlayerName(name),
+        ranking,
+        points: Number(row.points || row.rankingPoints || 0) || null,
+        country: player.countryCode || player.countryAcr || "",
+        rankingDate: row.rankedAt || row.rankingDate || row.date || null,
+        profileUrl: player.id ? "https://www.wtatennis.com/players/" + player.id : null
+      });
+    }
+
+    if (rows.length < pageSize) break;
+  }
+
+  if (!players.length) throw new Error("De WTA-website heeft geen bruikbare rankingregels teruggegeven.");
+  wtaRankingCache = { players, fetchedAt: Date.now() };
+  return players;
+}
+
+app.post("/api/wta-entry-rankings", async (req, res) => {
+  const names = Array.isArray(req.body?.names) ? req.body.names : [];
+  const cleanNames = [...new Set(names.map(name => String(name || "").trim()).filter(name => name.length >= 2))];
+  if (!cleanNames.length) {
+    return res.status(400).json({ ok: false, error: "Geen geldige speelsternamen ontvangen." });
+  }
+  if (cleanNames.length > 500) {
+    return res.status(400).json({ ok: false, error: "Maximaal 500 speelsters per aanvraag." });
+  }
+
+  try {
+    const players = await fetchWtaRankings();
+    const byName = new Map(players.map(player => [player.normalizedName, player]));
+    const matches = cleanNames.map(name => {
+      const found = byName.get(normalizePlayerName(name));
+      return {
+        requestedName: name,
+        found: Boolean(found),
+        player: found ? {
+          name: found.name,
+          ranking: found.ranking,
+          points: found.points,
+          country: found.country,
+          rankingDate: found.rankingDate,
+          profileUrl: found.profileUrl
+        } : null
+      };
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      ok: true,
+      source: "Officiële WTA-ranking",
+      sourceUrl: "https://www.wtatennis.com/rankings/singles",
+      fetchedAt: new Date(wtaRankingCache.fetchedAt).toISOString(),
+      rankingPlayersLoaded: players.length,
+      matches
+    });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: error.message || "WTA-ranking ophalen mislukt." });
+  }
+});
+
 app.get("/api/refresh", refreshCalendar);
 app.post("/api/refresh", refreshCalendar);
 
