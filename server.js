@@ -5,6 +5,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const ITF_CALENDAR_URL = "https://www.itftennis.com/en/tournament-calendar/womens-world-tennis-tour-calendar/";
+const API_BASE = "https://api.sportsapi365.com/v1/tennis";
 
 app.use(express.json());
 
@@ -26,18 +27,22 @@ let lastError = null;
 let calendarDiagnostics = { checkedAt: null, httpStatus: null, contentType: null, htmlLength: null, title: null, scriptCount: null, tableRowCount: null, hasNextData: null, hasTournamentText: null };
 
 function normalizeTournament(item) {
+  const country = typeof item.country === "string" ? item.country : (item.country?.name || item.hostNation || item.countryName || "");
+  const countryCode = item.countryCode || item.country?.acronym || item.countryAcronym || "";
+  const surface = typeof item.surface === "string" ? item.surface : (item.court?.name || item.surfaceName || "");
+  const tier = item.tier || item.category || item.round?.name || "";
   return {
-    id: item.id || (item.name + "|" + (item.date || "")),
-    name: item.name || "Naam niet beschikbaar",
-    date: item.date || null,
-    tier: item.tier || "",
-    category: item.tier || "",
-    surface: item.surface || "",
-    country: item.country || "",
-    countryCode: item.countryCode || "",
-    round: item.tier || "",
-    link: item.link || ITF_CALENDAR_URL,
-    source: "Officiële ITF-website"
+    id: item.id || item.tournamentId || (item.name + "|" + (item.date || "")),
+    name: item.name || item.tournamentName || "Naam niet beschikbaar",
+    date: item.date || item.startDate || null,
+    tier,
+    category: tier,
+    surface,
+    country,
+    countryCode,
+    round: item.round?.name || tier,
+    link: item.link || item.url || ITF_CALENDAR_URL,
+    source: item.source || "SportsAPI365"
   };
 }
 
@@ -179,41 +184,29 @@ function parseCalendarHtml(html, year) {
 }
 
 async function fetchCalendar(year) {
-  const startDate = year + "-01-01";
-  const endDate = year + "-12-31";
-  const url = ITF_CALENDAR_URL + "?categories=All&startdate=" + year;
-  const response = await fetch(url, {
+  const apiKey = process.env.SPORTSAPI365_KEY;
+  if (!apiKey) {
+    throw new Error("SPORTSAPI365_KEY ontbreekt in de Render-omgevingsvariabelen.");
+  }
+  const response = await fetch(`${API_BASE}/wta/tournament/calendar/${year}`, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; COURT-IQ/1.0; public-calendar-reader)",
-      "Accept": "text/html,application/xhtml+xml"
+      "X-Gravitee-Api-Key": apiKey,
+      "Accept": "application/json"
     },
-    signal: AbortSignal.timeout(25000)
+    signal: AbortSignal.timeout(20000)
   });
+  const body = await response.text();
   if (!response.ok) {
-    throw new Error("De openbare ITF-kalender gaf HTTP " + response.status + " terug voor " + year + ".");
+    throw new Error(`SportsAPI365 kalender ${year}: HTTP ${response.status}: ${body.slice(0, 180)}`);
   }
-  const html = await response.text();
-  const cheerio = require("cheerio");
-  const diagnosticPage = cheerio.load(html);
-  calendarDiagnostics = {
-    checkedAt: new Date().toISOString(),
-    year,
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    htmlLength: html.length,
-    title: diagnosticPage("title").first().text().trim().slice(0, 180),
-    htmlPreview: html.replace(/\\s+/g, " ").trim().slice(0, 500),
-    finalUrl: response.url,
-    scriptCount: diagnosticPage("script").length,
-    tableRowCount: diagnosticPage("tr").length,
-    hasNextData: html.includes("__NEXT_DATA__"),
-    hasTournamentText: /W100|W75|W50|W35|W25|W15|tournament calendar/i.test(html)
-  };
-  const events = parseCalendarHtml(html, year);
-  calendarDiagnostics.parsedTournamentCount = events.length;
-  if (!events.length) {
-    throw new Error("De openbare ITF-kalender voor " + year + " is bereikbaar, maar de toernooien konden niet automatisch uit de pagina worden gelezen. De bestaande gegevens blijven behouden.");
+  let result;
+  try { result = JSON.parse(body); }
+  catch { throw new Error(`SportsAPI365 kalender ${year}: ongeldige JSON-respons.`); }
+  if (!Array.isArray(result.data)) {
+    throw new Error(`SportsAPI365 kalender ${year}: geen toernooilijst in de respons.`);
   }
+  const events = result.data.map(item => normalizeTournament({ ...item, source: "SportsAPI365" }));
+  if (!events.length) throw new Error(`SportsAPI365 kalender ${year}: geen toernooien teruggekregen.`);
   return events;
 }
 
@@ -347,7 +340,7 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/status", (req, res) => {
   res.json({
-    source: "Officiële ITF-website",
+    source: "SportsAPI365",
     lastRefresh,
     tournamentCount: tournaments.length,
     liveDataLoaded: tournaments.length > 0,
@@ -358,7 +351,7 @@ app.get("/api/status", (req, res) => {
 
 app.get("/api/tournaments", (req, res) => {
   res.json({
-    source: "Officiële ITF-website",
+    source: "SportsAPI365",
     lastRefresh,
     count: tournaments.length,
     tournaments
