@@ -485,6 +485,7 @@
   }
 
   async function refreshWtaRankings(saved, announce = true) {
+    const tournamentKey = selectedTournamentKey();
     let rows;
     try { rows = parseEntryRows(saved.raw); }
     catch (error) { $("entryStatus").className = "status error"; $("entryStatus").textContent = error.message; return; }
