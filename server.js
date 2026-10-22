@@ -294,6 +294,50 @@ async function refreshCalendar(req, res) {
   });
 }
 
+app.get("/api/itf-browser-test", async (req, res) => {
+  const year = Number(req.query.year || new Date().getFullYear());
+  if (!Number.isInteger(year) || year < 2020 || year > 2100) {
+    return res.status(400).json({ ok: false, error: "Ongeldig jaartal." });
+  }
+  let browser;
+  try {
+    const chromium = require("@sparticuz/chromium");
+    const puppeteer = require("puppeteer-core");
+    const browserUrl = ITF_CALENDAR_URL + "?categories=All&startdate=" + year;
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: { width: 1365, height: 900 },
+      executablePath: await chromium.executablePath(),
+      headless: true
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+    await page.goto(browserUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+    try { await page.waitForSelector("table tr, [role='row']", { timeout: 20000 }); } catch {}
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    const diagnostics = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll("table tr, [role='row']"))
+        .map(row => (row.innerText || row.textContent || "").replace(/\\s+/g, " ").trim())
+        .filter(Boolean);
+      return {
+        title: document.title,
+        url: location.href,
+        pageTextLength: (document.body?.innerText || "").length,
+        bodyPreview: (document.body?.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 700),
+        rowCount: rows.length,
+        sampleRows: rows.slice(0, 8),
+        hasIncapsula: document.documentElement.outerHTML.includes("_Incapsula_Resource")
+      };
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: diagnostics.rowCount > 1 && !diagnostics.hasIncapsula, source: "Officiële ITF-website via headless browser", year, diagnostics });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: error.message || "Browserproef mislukt." });
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
