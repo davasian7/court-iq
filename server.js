@@ -145,20 +145,20 @@ function parseCalendarHtml(html, year) {
   // directly as a fallback because the page's embedded JSON structure changes.
   $("tr").each((_, row) => {
     const cells = $(row).find("th, td").map((__, cell) =>
-      $(cell).text().replace(/\\s+/g, " ").trim()
+      $(cell).text().replace(/\s+/g, " ").trim()
     ).get();
     if (cells.length < 5) return;
     const joined = cells.join(" | ");
-    if (/^name\\s*\\|/i.test(joined) || /tournament name/i.test(cells[0])) return;
+    if (/^name\s*\|/i.test(joined) || /tournament name/i.test(cells[0])) return;
 
-    const name = (cells[0] || "").replace(/\\s+/g, " ").trim();
-    const dateCell = cells.find(cell => /\\d{1,2}\\s+[A-Za-z]{3,9}\\s+to\\s+\\d{1,2}\\s+[A-Za-z]{3,9}/i.test(cell));
-    const tierCell = cells.find(cell => /\\bW(?:15|25|35|50|60|75|100)\\b/i.test(cell));
-    const surfaceCell = cells.find(cell => /(?:Outdoor|Indoor)\\s*-\\s*(?:Hard|Clay|Grass|Carpet)/i.test(cell)) || "";
-    const countryCell = cells.find(cell => /^(?:USA|Portugal|France|Italy|Spain|Germany|Great Britain|Australia|Canada|China|Japan|Belgium|Netherlands|Tunisia|Turkey|Egypt|Brazil|India|Mexico|Poland|Czechia|Croatia|Greece|Sweden|Norway|Denmark|Austria|Switzerland|Romania|Bulgaria|Finland|Ireland|Israel|Thailand|Vietnam|Korea|South Korea|New Zealand|Argentina|Chile|Colombia|South Africa|Morocco|Portugal|United States|United Kingdom)(?:\\s|$)/i.test(cell)) || "";
+    const name = (cells[0] || "").replace(/\s+/g, " ").trim();
+    const dateCell = cells.find(cell => /\d{1,2}\s+[A-Za-z]{3,9}\s+to\s+\d{1,2}\s+[A-Za-z]{3,9}/i.test(cell));
+    const tierCell = cells.find(cell => /\bW(?:15|25|35|50|60|75|100)\b/i.test(cell));
+    const surfaceCell = cells.find(cell => /(?:Outdoor|Indoor)\s*-\s*(?:Hard|Clay|Grass|Carpet)/i.test(cell)) || "";
+    const countryCell = cells.find(cell => /^(?:USA|Portugal|France|Italy|Spain|Germany|Great Britain|Australia|Canada|China|Japan|Belgium|Netherlands|Tunisia|Turkey|Egypt|Brazil|India|Mexico|Poland|Czechia|Croatia|Greece|Sweden|Norway|Denmark|Austria|Switzerland|Romania|Bulgaria|Finland|Ireland|Israel|Thailand|Vietnam|Korea|South Korea|New Zealand|Argentina|Chile|Colombia|South Africa|Morocco|Portugal|United States|United Kingdom)(?:\s|$)/i.test(cell)) || "";
     if (!name || !dateCell || !tierCell) return;
-    const dateMatch = dateCell.match(/(\\d{1,2}\\s+[A-Za-z]{3,9}\\s+to\\s+\\d{1,2}\\s+[A-Za-z]{3,9}(?:\\s+\\d{4})?)/i);
-    const date = dateMatch ? toIsoDate(dateMatch[1].split(/\\s+to\\s+/i)[0], year) : null;
+    const dateMatch = dateCell.match(/(\d{1,2}\s+[A-Za-z]{3,9}\s+to\s+\d{1,2}\s+[A-Za-z]{3,9}(?:\s+\d{4})?)/i);
+    const date = dateMatch ? toIsoDate(dateMatch[1].split(/\s+to\s+/i)[0], year) : null;
     if (!date) return;
     const link = $(row).find('a[href*="/en/tournament/"]').first().attr("href")
       || $(row).find("a[href]").first().attr("href") || "";
@@ -167,7 +167,7 @@ function parseCalendarHtml(html, year) {
     seen.add(id);
     found.push(normalizeTournament({
       id, name, date,
-      tier: (tierCell.match(/\\bW(?:15|25|35|50|60|75|100)\\b/i) || [])[0] || tierCell,
+      tier: (tierCell.match(/\bW(?:15|25|35|50|60|75|100)\b/i) || [])[0] || tierCell,
       surface: surfaceCell,
       country: countryCell,
       link: link.startsWith("http") ? link : link.startsWith("/") ? "https://www.itftennis.com" + link : ITF_CALENDAR_URL
