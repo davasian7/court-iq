@@ -265,6 +265,17 @@
     <div id="playerLookupStatus" class="status">Typ de naam van een speelster om haar ranking op te zoeken.</div>
     <div id="playerNationality" class="status"></div>
 
+    <label for="rankingLookup">Of zoek rechtstreeks op WTA-rankingnummer</label>
+    <div class="filters">
+      <div>
+        <input id="rankingLookup" type="number" min="1" step="1" inputmode="numeric" placeholder="Bijv. 233" aria-describedby="rankingLookupStatus">
+      </div>
+      <div>
+        <button id="findRanking" type="button" class="secondary">Zoek ranking</button>
+      </div>
+    </div>
+    <div id="rankingLookupStatus" class="status">Vul een rankingnummer in, bijvoorbeeld 233.</div>
+
     <div class="filters">
       <div>
         <label for="ranking">Huidige ranking</label>
@@ -447,6 +458,38 @@
       $("playerLookupStatus").className = "status error";
       $("playerLookupStatus").textContent = "WTA-ranking ophalen mislukt: " + error.message;
     } finally { profileRankingLookupBusy = false; }
+  }
+
+  async function lookupPlayerByRanking() {
+    const rank = Number($("rankingLookup").value);
+    const status = $("rankingLookupStatus");
+    if (!Number.isInteger(rank) || rank < 1) {
+      status.className = "status error";
+      status.textContent = "Vul een geldig rankingnummer in.";
+      return;
+    }
+    status.className = "status";
+    status.textContent = "Ranking #" + rank + " opzoeken...";
+    $("findRanking").disabled = true;
+    try {
+      const response = await fetch(API + "/wta-player-search?q=" + encodeURIComponent(String(rank)));
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Ranking opzoeken mislukt.");
+      const player = (result.players || []).find(item => Number(item.ranking) === rank);
+      if (!player) {
+        status.className = "status error";
+        status.textContent = "Geen speelster gevonden op WTA-ranking #" + rank + ". De openbare rankingbron bevat mogelijk niet alle posities.";
+        return;
+      }
+      applySelectedPlayer(player);
+      status.className = "status success";
+      status.textContent = "Gevonden: " + player.name + " — WTA-ranking #" + player.ranking + ".";
+    } catch (error) {
+      status.className = "status error";
+      status.textContent = "Opzoeken mislukt: " + error.message;
+    } finally {
+      $("findRanking").disabled = false;
+    }
   }
 
   function applySelectedPlayer(player) {
@@ -877,6 +920,13 @@
   }
 
   $("saveProfile").addEventListener("click", saveProfile);
+  $("findRanking").addEventListener("click", lookupPlayerByRanking);
+  $("rankingLookup").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      lookupPlayerByRanking();
+    }
+  });
   $("playerName").addEventListener("input", () => {
     clearTimeout(playerSearchTimer);
     lastProfileRankingName = "";
