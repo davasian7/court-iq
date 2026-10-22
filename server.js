@@ -427,7 +427,7 @@ app.get("/api/wta-player-search", async (req, res) => {
   if (query.length < 2) return res.json({ ok: true, players: [] });
   try {
     const players = await fetchWtaRankings();
-    const requestedRank = /^\\d+$/.test(query) ? Number(query) : null;
+    const requestedRank = /^\d+$/.test(query) ? Number(query) : null;
     if (requestedRank !== null) {
       const exact = players.find(player => player.ranking === requestedRank);
       res.setHeader("Cache-Control", "no-store");
