@@ -459,7 +459,7 @@
     $("entryAsOf").value = saved ? saved.asOf || "" : "";
     $("entryStatus").textContent = saved ? "Eerder geïmporteerde lijst geladen op dit toestel." : "";
     $("entryResults").replaceChildren();
-    if (saved && saved.raw) renderEntryAnalysis(saved, false);
+    if (saved && saved.raw) { renderEntryAnalysis(saved, false); refreshWtaRankings(saved, false); }
   }
 
   function parseEntryRows(raw) {
@@ -471,12 +471,38 @@
     const nameIndex = header.findIndex(value => /name|player|speelster|naam/.test(value));
     const rankIndex = header.findIndex(value => /rank|ranking|positie/.test(value));
     const statusIndex = header.findIndex(value => /status|entry|acceptance|categorie/.test(value));
-    if (nameIndex < 0 || rankIndex < 0) throw new Error("Geen herkenbare kolommen gevonden. Gebruik een kopregel met 'Player/Name' en 'Ranking/Rank'.");
+    if (nameIndex < 0) throw new Error("Geen herkenbare naamkolom gevonden. Gebruik een kopregel met Player/Name.");
     return lines.slice(1).map(split).map(row => ({
       name: row[nameIndex] || "",
-      ranking: Number(String(row[rankIndex] || "").replace(/[^0-9]/g, "")) || null,
+      ranking: rankIndex >= 0 ? (Number(String(row[rankIndex] || "").replace(/[^0-9]/g, "")) || null) : null,
       status: statusIndex >= 0 ? (row[statusIndex] || "Onbekend") : "Onbekend"
-    })).filter(row => row.name && row.ranking);
+    })).filter(row => row.name);
+  }
+
+  function normalizeRankingName(value) {
+    return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  async function refreshWtaRankings(saved, announce = true) {
+    let rows;
+    try { rows = parseEntryRows(saved.raw); }
+    catch (error) { $("entryStatus").className = "status error"; $("entryStatus").textContent = error.message; return; }
+    if (!rows.length) return;
+    if (saved.wtaFetchedAt && Date.now() - new Date(saved.wtaFetchedAt).getTime() < 6 * 60 * 60 * 1000 && saved.wtaMatches) { renderEntryAnalysis(saved, false); return; }
+    if (announce) { $("entryStatus").className = "status"; $("entryStatus").textContent = "Officiële WTA-rankings ophalen voor " + rows.length + " speelsters..."; }
+    try {
+      const response = await fetch(API + "/wta-entry-rankings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ names: rows.map(row => row.name) }) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "WTA-ranking ophalen mislukt.");
+      saved.wtaMatches = result.matches; saved.wtaFetchedAt = result.fetchedAt; saved.wtaSourceUrl = result.sourceUrl;
+      entryLists[selectedTournamentKey()] = saved; persistEntryLists(); renderEntryAnalysis(saved, false);
+      const found = result.matches.filter(match => match.found).length;
+      $("entryStatus").className = found ? "status success" : "status";
+      $("entryStatus").textContent = "WTA-ranking bijgewerkt: " + found + " van " + rows.length + " speelsters gevonden. Bron: officiële WTA-website.";
+    } catch (error) {
+      $("entryStatus").className = "status error"; $("entryStatus").textContent = "WTA-rankings niet opgehaald: " + error.message + ". De geïmporteerde lijst blijft bewaard."; renderEntryAnalysis(saved, false);
+    }
   }
 
   function renderEntryAnalysis(saved, announce = true) {
@@ -490,12 +516,15 @@
       $("entryStatus").textContent = error.message;
       return;
     }
-    const sorted = rows.slice().sort((a, b) => a.ranking - b.ranking);
-    const rankPosition = targetRank ? sorted.filter(row => row.ranking < targetRank).length + 1 : null;
+    const matches = new Map((saved.wtaMatches || []).map(match => [normalizeRankingName(match.requestedName), match]));
+    rows = rows.map(row => { const match = matches.get(normalizeRankingName(row.name)); return { ...row, ranking: match && match.found ? match.player.ranking : row.ranking }; });
+    const sorted = rows.slice().sort((a, b) => (a.ranking || Number.MAX_SAFE_INTEGER) - (b.ranking || Number.MAX_SAFE_INTEGER));
+    const rankedRows = sorted.filter(row => row.ranking);
+    const rankPosition = targetRank ? rankedRows.filter(row => row.ranking < targetRank).length + 1 : null;
     const sourceLink = saved.sourceUrl && /^https?:\/\//i.test(saved.sourceUrl) ? saved.sourceUrl : "";
     const summary = element("div", "panel");
     summary.style.marginTop = "12px";
-    summary.appendChild(element("h3", "", "Inschrijvingslijst: " + rows.length + " speelsters met ranking"));
+    summary.appendChild(element("h3", "", "Inschrijvingslijst: " + rows.length + " speelsters · " + rankedRows.length + " met ranking"));
     summary.appendChild(element("p", "", targetRank
       ? "Jouw speelster staat op ranking #" + targetRank + ". In deze geïmporteerde lijst staan " + (rankPosition - 1) + " speelsters met een betere ranking."
       : "Vul eerst de huidige ranking in het speelsterprofiel in om haar positie in deze lijst te vergelijken."));
@@ -520,7 +549,7 @@
     const tbody = document.createElement("tbody");
     sorted.forEach((row, index) => {
       const tr = document.createElement("tr");
-      [String(index + 1), row.name, "#" + row.ranking, row.status].forEach(value => {
+      [String(index + 1), row.name, row.ranking ? "#" + row.ranking : "Niet gevonden", row.status].forEach(value => {
         const td = element("td", "", value);
         td.style.padding = "8px 5px"; td.style.borderBottom = "1px solid var(--border)";
         tr.appendChild(td);
@@ -552,7 +581,8 @@
     const saved = { raw, sourceUrl: $("entrySourceUrl").value.trim(), asOf: $("entryAsOf").value, importedAt: new Date().toISOString() };
     entryLists[key] = saved;
     persistEntryLists();
-    renderEntryAnalysis(saved);
+    renderEntryAnalysis(saved, false);
+    refreshWtaRankings(saved, true);
   }
 
   function loadProfile() {
