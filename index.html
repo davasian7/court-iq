@@ -419,45 +419,9 @@
   }
 
 
-  let playerLookupTimer = null;
-  let lastLookupName = "";
-
-  async function lookupPlayer() {
-    const name = $("playerName").value.trim();
-    if (name.length < 2 || name === lastLookupName) return;
-    lastLookupName = name;
-    $("playerLookupStatus").className = "status";
-    $("playerLookupStatus").textContent = "WTA-ranking zoeken...";
-    try {
-      const response = await fetch(`${API}/player-ranking?name=${encodeURIComponent(name)}`);
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "Opzoeken mislukt.");
-      if (!result.matches.length) {
-        $("playerLookupStatus").className = "status";
-        $("playerLookupStatus").textContent = result.message || "Geen speelster gevonden.";
-        return;
-      }
-      if (result.matches.length === 1 || result.matches[0].name.toLowerCase() === name.toLowerCase()) {
-        const player = result.matches[0];
-        $("playerName").value = player.name;
-        if (player.ranking) $("ranking").value = player.ranking;
-        $("playerNationality").textContent = player.country ? "Nationaliteit/land: " + player.country : "Nationaliteit niet beschikbaar via de gegevensbron.";
-        const rankDate = player.rankingDate ? new Date(player.rankingDate) : null;
-        const rankDateText = rankDate && !Number.isNaN(rankDate.getTime()) ? " · peildatum " + rankDate.toLocaleDateString("nl-BE") : "";
-        $("playerLookupStatus").className = "status success";
-        $("playerLookupStatus").textContent = player.ranking
-          ? `WTA-singlesranking gevonden: #${player.ranking}${rankDateText}`
-          : "Speelster gevonden, maar er is geen ranking beschikbaar.";
-      } else {
-        $("playerLookupStatus").className = "status";
-        $("playerLookupStatus").textContent = "Meerdere speelsters gevonden: " + result.matches.map(p => p.name + (p.ranking ? " (#" + p.ranking + ")" : "")).join(", ") + ". Typ meer van de naam.";
-      }
-    } catch (error) {
-      $("playerLookupStatus").className = "status error";
-      $("playerLookupStatus").textContent = "WTA-ranking kon niet worden opgehaald: " + error.message;
-      lastLookupName = "";
-    }
-  }
+  // Rankings are entered manually; no paid sports-data API is used.
+  $("playerLookupStatus").textContent = "Voer de WTA-ranking zelf in. Er wordt geen externe ranking-API gebruikt.";
+  $("playerNationality").textContent = "Nationaliteit kan handmatig worden ingevuld indien nodig.";
 
   let entryLists = loadEntryLists();
 
@@ -1041,12 +1005,6 @@
     if (saved && saved.raw) renderEntryAnalysis(saved, false);
   });
 
-  $("playerName").addEventListener("input", () => {
-    clearTimeout(playerLookupTimer);
-    lastLookupName = "";
-    playerLookupTimer = setTimeout(lookupPlayer, 700);
-  });
-  $("playerName").addEventListener("change", lookupPlayer);
   $("saveProfile").addEventListener("click", saveProfile);
   $("refresh").addEventListener("click", () => refresh(true));
 
