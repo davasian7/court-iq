@@ -223,6 +223,12 @@
     .check-filter label { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; font-weight: 500; }
     .check-filter input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--green); flex-shrink: 0; }
     .check-filter .group-actions { grid-column: 1 / -1; }
+    .player-search-wrap { position: relative; }
+    .player-suggestions { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; max-height: 280px; overflow-y: auto; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px #0005; }
+    .player-suggestions button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 48px; text-align: left; padding: 10px 12px; border-radius: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font-weight: 500; }
+    .player-suggestions button:last-child { border-bottom: 0; }
+    .player-suggestions button:active, .player-suggestions button:hover { background: var(--panel); }
+    .player-suggestions .player-rank { color: var(--green); white-space: nowrap; font-weight: 800; }
   
     .results-count { color: var(--muted); font-size: .8em; font-weight: 600; white-space: nowrap; }
   </style>
@@ -252,7 +258,10 @@
     <p class="muted">Stel je voorkeuren in om passende toernooien te herkennen.</p>
 
     <label for="playerName">Naam speelster</label>
-    <input id="playerName" placeholder="Naam speelster" autocomplete="off" aria-describedby="playerLookupStatus">
+    <div class="player-search-wrap">
+      <input id="playerName" placeholder="Begin een naam te typen..." autocomplete="off" aria-describedby="playerLookupStatus" aria-autocomplete="list" aria-controls="playerSuggestions">
+      <div id="playerSuggestions" class="player-suggestions hidden" role="listbox" aria-label="WTA-speelsters"></div>
+    </div>
     <div id="playerLookupStatus" class="status">Typ de naam van een speelster om haar ranking op te zoeken.</div>
     <div id="playerNationality" class="status"></div>
 
@@ -403,26 +412,26 @@
   }
 
 
-  // Rankings are entered manually; no paid sports-data API is used.
-  $("playerLookupStatus").textContent = "Voer de WTA-ranking zelf in. Er wordt geen externe ranking-API gebruikt.";
-  $("playerNationality").textContent = "Nationaliteit kan handmatig worden ingevuld indien nodig.";
+  // Rankings and name suggestions use the public WTA ranking source via our backend.
+  $("playerLookupStatus").textContent = "Typ minstens 2 letters en kies de juiste speelster uit de suggesties.";
+  $("playerNationality").textContent = "";
 
   // Entry-list import and analysis removed; rankings are managed in the player profile.
 
   let profileRankingLookupBusy = false;
   let lastProfileRankingName = "";
+  let playerSearchTimer = null;
+  let playerSearchRequest = 0;
 
   async function lookupProfileWtaRanking() {
     const name = $("playerName").value.trim();
-    if (name.length < 2 || name === lastProfileRankingName || profileRankingLookupBusy) return;
+    if (name.length < 2 || profileRankingLookupBusy) return;
     profileRankingLookupBusy = true;
-    lastProfileRankingName = name;
     $("playerLookupStatus").className = "status";
-    $("playerLookupStatus").textContent = "Zoeken in de officiële WTA-ranking...";
+    $("playerLookupStatus").textContent = "WTA-ranking opzoeken...";
     try {
       const response = await fetch(API + "/wta-entry-rankings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ names: [name] })
       });
       const result = await response.json();
@@ -430,21 +439,66 @@
       const match = (result.matches || []).find(item => item.found);
       if (!match) {
         $("playerLookupStatus").className = "status";
-        $("playerLookupStatus").textContent = "Geen exacte WTA-match gevonden. Controleer de naam of vul de ranking handmatig in.";
+        $("playerLookupStatus").textContent = "Geen exacte WTA-match. Kies een suggestie of vul de ranking handmatig in.";
         return;
       }
-      $("playerName").value = match.player.name;
-      $("ranking").value = match.player.ranking;
-      $("playerNationality").textContent = match.player.country ? "Land: " + match.player.country : "";
-      $("playerLookupStatus").className = "status success";
-      $("playerLookupStatus").textContent = "WTA-ranking gevonden: #" + match.player.ranking + ". Bewaar het profiel om deze ranking lokaal op te slaan.";
-      render();
+      applySelectedPlayer(match.player);
     } catch (error) {
       $("playerLookupStatus").className = "status error";
       $("playerLookupStatus").textContent = "WTA-ranking ophalen mislukt: " + error.message;
-      lastProfileRankingName = "";
-    } finally {
-      profileRankingLookupBusy = false;
+    } finally { profileRankingLookupBusy = false; }
+  }
+
+  function applySelectedPlayer(player) {
+    $("playerName").value = player.name;
+    $("ranking").value = player.ranking;
+    $("playerNationality").textContent = player.country ? "Land: " + player.country : "";
+    $("playerLookupStatus").className = "status success";
+    $("playerLookupStatus").textContent = "WTA-ranking gevonden: #" + player.ranking + ". Bewaar het profiel om deze ranking op te slaan.";
+    $("playerSuggestions").replaceChildren();
+    $("playerSuggestions").classList.add("hidden");
+    lastProfileRankingName = player.name;
+    render();
+  }
+
+  async function searchWtaPlayers() {
+    const query = $("playerName").value.trim();
+    const requestId = ++playerSearchRequest;
+    const list = $("playerSuggestions");
+    if (query.length < 2) {
+      list.replaceChildren(); list.classList.add("hidden");
+      $("playerLookupStatus").className = "status";
+      $("playerLookupStatus").textContent = "Typ minstens 2 letters en kies de juiste speelster uit de suggesties.";
+      return;
+    }
+    $("playerLookupStatus").className = "status";
+    $("playerLookupStatus").textContent = "Zoeken naar speelsters...";
+    try {
+      const response = await fetch(API + "/wta-player-search?q=" + encodeURIComponent(query));
+      const result = await response.json();
+      if (requestId !== playerSearchRequest) return;
+      if (!response.ok || !result.ok) throw new Error(result.error || "Zoeken mislukt.");
+      list.replaceChildren();
+      for (const player of (result.players || [])) {
+        const button = document.createElement("button");
+        button.type = "button"; button.setAttribute("role", "option");
+        const name = document.createElement("span");
+        name.textContent = player.name + (player.country ? " · " + player.country : "");
+        const rank = document.createElement("span");
+        rank.className = "player-rank"; rank.textContent = "#" + player.ranking;
+        button.append(name, rank);
+        button.addEventListener("click", () => applySelectedPlayer(player));
+        list.appendChild(button);
+      }
+      list.classList.toggle("hidden", !(result.players || []).length);
+      $("playerLookupStatus").textContent = result.players?.length
+        ? result.players.length + " suggestie(s) uit de officiële WTA-ranking."
+        : "Geen overeenkomst gevonden. Probeer een andere schrijfwijze.";
+    } catch (error) {
+      if (requestId !== playerSearchRequest) return;
+      list.replaceChildren(); list.classList.add("hidden");
+      $("playerLookupStatus").className = "status error";
+      $("playerLookupStatus").textContent = "Zoeken mislukt: " + error.message;
     }
   }
 
@@ -823,8 +877,23 @@
   }
 
   $("saveProfile").addEventListener("click", saveProfile);
+  $("playerName").addEventListener("input", () => {
+    clearTimeout(playerSearchTimer);
+    lastProfileRankingName = "";
+    playerSearchTimer = setTimeout(searchWtaPlayers, 250);
+  });
   $("playerName").addEventListener("change", lookupProfileWtaRanking);
-  $("playerName").addEventListener("keydown", event => { if (event.key === "Enter") lookupProfileWtaRanking(); });
+  $("playerName").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      const first = $("playerSuggestions").querySelector("button");
+      if (first && !$("playerSuggestions").classList.contains("hidden")) { event.preventDefault(); first.click(); }
+      else lookupProfileWtaRanking();
+    }
+    if (event.key === "Escape") $("playerSuggestions").classList.add("hidden");
+  });
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".player-search-wrap")) $("playerSuggestions").classList.add("hidden");
+  });
   $("refresh").addEventListener("click", () => refresh(true));
 
   // Refresh from the official-site scraper every five minutes while the app is open.
