@@ -934,7 +934,11 @@
   loadProfile();
   saveIds();
 
-  loadTournaments().catch(error => {
+  loadTournaments().then(() => {
+    // The backend keeps scraped tournaments in memory. After a cold start or
+    // restart that cache may be empty, so automatically trigger the first scrape.
+    if (!tournaments.length) return refresh(false);
+  }).catch(error => {
     $("dataStatus").className = "status error";
     $("dataStatus").textContent =
       "Kon de kalender niet laden: " + error.message +
