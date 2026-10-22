@@ -371,22 +371,6 @@
     <div id="lastUpdated" class="status"></div>
   </section>
 
-  <section class="panel" id="entryAnalysis">
-    <h2>Inschrijvingslijst analyseren</h2>
-    <p class="muted">De WTA-ranking wordt automatisch opgezocht voor speelsters in een geïmporteerde inschrijvingslijst. Plak de lijst en tik op Analyseer inschrijvingslijst. Acceptance lists zelf worden nog handmatig geïmporteerd.</p>
-    <label for="entryTournament">Toernooi</label>
-    <select id="entryTournament"><option value="">Laad eerst de toernooikalender</option></select>
-    <label for="entrySourceUrl">Officiële bronlink (optioneel)</label>
-    <input id="entrySourceUrl" type="url" placeholder="https://...">
-    <label for="entryAsOf">Datum van de inschrijvingslijst</label>
-    <input id="entryAsOf" type="date">
-    <label for="entryPaste">Inschrijvingsgegevens plakken</label>
-    <textarea id="entryPaste" rows="6" placeholder="Plak hier rijen uit Excel of een CSV. Voorbeeld:\nPlayer\tRanking\tStatus\nJane Example\t450\tMain Draw\nAlex Example\t620\tQualifying\nTaylor Example\t710\tAlternate" style="width:100%;min-height:150px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px;font:inherit"></textarea>
-    <p class="muted">Verwachte kolommen: speelsternaam, ranking en optioneel status. Tabgescheiden gegevens uit Excel werken ook. Gebruik alleen gegevens die je mag raadplegen.</p>
-    <button id="analyzeEntries">Analyseer inschrijvingslijst</button>
-    <div id="entryStatus" class="status" aria-live="polite"></div>
-    <div id="entryResults"></div>
-  </section>
 
   <section>
     <div class="section-head">
@@ -423,180 +407,7 @@
   $("playerLookupStatus").textContent = "Voer de WTA-ranking zelf in. Er wordt geen externe ranking-API gebruikt.";
   $("playerNationality").textContent = "Nationaliteit kan handmatig worden ingevuld indien nodig.";
 
-  let entryLists = loadEntryLists();
-
-  function loadEntryLists() {
-    try { return JSON.parse(localStorage.getItem("courtiq-entry-lists") || "{}"); }
-    catch { return {}; }
-  }
-
-  function persistEntryLists() {
-    localStorage.setItem("courtiq-entry-lists", JSON.stringify(entryLists));
-  }
-
-  function populateEntryTournamentSelect() {
-    const select = $("entryTournament");
-    const previous = select.value;
-    select.replaceChildren();
-    const placeholder = element("option", "", "Selecteer een toernooi");
-    placeholder.value = "";
-    select.appendChild(placeholder);
-    tournaments.slice().sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))).forEach(item => {
-      const option = element("option", "", (item.name || "Toernooi") + " — " + formatDate(item));
-      option.value = String(item.id != null ? item.id : (String(item.name) + "|" + String(item.date || "")));
-      select.appendChild(option);
-    });
-    if (previous && [...select.options].some(option => option.value === previous)) select.value = previous;
-    loadSelectedEntryList();
-  }
-
-  function selectedTournamentKey() { return $("entryTournament").value; }
-
-  function loadSelectedEntryList() {
-    const saved = entryLists[selectedTournamentKey()];
-    $("entryPaste").value = saved ? saved.raw || "" : "";
-    $("entrySourceUrl").value = saved ? saved.sourceUrl || "" : "";
-    $("entryAsOf").value = saved ? saved.asOf || "" : "";
-    $("entryStatus").textContent = saved ? "Eerder geïmporteerde lijst geladen op dit toestel." : "";
-    $("entryResults").replaceChildren();
-    if (saved && saved.raw) { renderEntryAnalysis(saved, false); refreshWtaRankings(saved, false); }
-  }
-
-  function parseEntryRows(raw) {
-    const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines.length < 2) throw new Error("Plak minstens een kopregel en één speelster.");
-    const delimiter = lines[0].includes("\t") ? "\t" : (lines[0].includes(";") ? ";" : ",");
-    const split = line => line.split(delimiter).map(value => value.trim().replace(/^["']|["']$/g, ""));
-    const header = split(lines[0]).map(value => value.toLowerCase());
-    const nameIndex = header.findIndex(value => /name|player|speelster|naam/.test(value));
-    const rankIndex = header.findIndex(value => /rank|ranking|positie/.test(value));
-    const statusIndex = header.findIndex(value => /status|entry|acceptance|categorie/.test(value));
-    if (nameIndex < 0) throw new Error("Geen herkenbare naamkolom gevonden. Gebruik een kopregel met Player/Name.");
-    return lines.slice(1).map(split).map(row => ({
-      name: row[nameIndex] || "",
-      ranking: rankIndex >= 0 ? (Number(String(row[rankIndex] || "").replace(/[^0-9]/g, "")) || null) : null,
-      status: statusIndex >= 0 ? (row[statusIndex] || "Onbekend") : "Onbekend"
-    })).filter(row => row.name);
-  }
-
-  function normalizeRankingName(value) {
-    return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-  }
-
-  async function refreshWtaRankings(saved, announce = true) {
-    const tournamentKey = selectedTournamentKey();
-    let rows;
-    try { rows = parseEntryRows(saved.raw); }
-    catch (error) { $("entryStatus").className = "status error"; $("entryStatus").textContent = error.message; return; }
-    if (!rows.length) return;
-    if (saved.wtaFetchedAt && Date.now() - new Date(saved.wtaFetchedAt).getTime() < 6 * 60 * 60 * 1000 && saved.wtaMatches) { renderEntryAnalysis(saved, false); return; }
-    if (announce) { $("entryStatus").className = "status"; $("entryStatus").textContent = "Officiële WTA-rankings ophalen voor " + rows.length + " speelsters..."; }
-    try {
-      const response = await fetch(API + "/wta-entry-rankings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ names: rows.map(row => row.name) }) });
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "WTA-ranking ophalen mislukt.");
-      saved.wtaMatches = result.matches; saved.wtaFetchedAt = result.fetchedAt; saved.wtaSourceUrl = result.sourceUrl;
-      entryLists[tournamentKey] = saved; persistEntryLists(); renderEntryAnalysis(saved, false);
-      const found = result.matches.filter(match => match.found).length;
-      $("entryStatus").className = found ? "status success" : "status";
-      $("entryStatus").textContent = "WTA-ranking bijgewerkt: " + found + " van " + rows.length + " speelsters gevonden. Bron: officiële WTA-website.";
-    } catch (error) {
-      $("entryStatus").className = "status error"; $("entryStatus").textContent = "WTA-rankings niet opgehaald: " + error.message + ". De geïmporteerde lijst blijft bewaard."; renderEntryAnalysis(saved, false);
-    }
-  }
-
-  function renderEntryAnalysis(saved, announce = true) {
-    const targetRank = Number($("ranking").value);
-    const output = $("entryResults");
-    output.replaceChildren();
-    let rows;
-    try { rows = parseEntryRows(saved.raw); }
-    catch (error) {
-      $("entryStatus").className = "status error";
-      $("entryStatus").textContent = error.message;
-      return;
-    }
-    const matches = new Map((saved.wtaMatches || []).map(match => [normalizeRankingName(match.requestedName), match]));
-    rows = rows.map(row => { const match = matches.get(normalizeRankingName(row.name)); return { ...row, ranking: match && match.found ? match.player.ranking : row.ranking }; });
-    const sorted = rows.slice().sort((a, b) => (a.ranking || Number.MAX_SAFE_INTEGER) - (b.ranking || Number.MAX_SAFE_INTEGER));
-    const rankedRows = sorted.filter(row => row.ranking);
-    const rankPosition = targetRank ? rankedRows.filter(row => row.ranking < targetRank).length + 1 : null;
-    const sourceLink = saved.sourceUrl && /^https?:\/\//i.test(saved.sourceUrl) ? saved.sourceUrl : "";
-    const summary = element("div", "panel");
-    summary.style.marginTop = "12px";
-    summary.appendChild(element("h3", "", "Inschrijvingslijst: " + rows.length + " speelsters · " + rankedRows.length + " met ranking"));
-    summary.appendChild(element("p", "", targetRank
-      ? (rankedRows.length
-          ? "Jouw speelster staat op ranking #" + targetRank + ". In deze geïmporteerde lijst staan " + (rankPosition - 1) + " speelsters met een betere ranking."
-          : "Er zijn nog geen WTA-rankings beschikbaar om deze lijst te vergelijken.")
-      : "Vul eerst de huidige ranking in het speelsterprofiel in om haar positie in deze lijst te vergelijken."));
-    summary.appendChild(element("p", "muted", "Dit is een vergelijking met de geplakte lijst, geen bevestiging van toelating. De uiteindelijke acceptatie hangt ook af van deadlines, rankingpeildatum, categorie, quota, protected ranking, wildcards en terugtrekkingen."));
-    if (saved.asOf) summary.appendChild(element("p", "muted", "Lijstpeildatum: " + saved.asOf));
-    if (sourceLink) {
-      const link = element("a", "", "Officiële bron openen ↗");
-      link.href = sourceLink; link.target = "_blank"; link.rel = "noopener noreferrer";
-      summary.appendChild(link);
-    }
-    output.appendChild(summary);
-    const table = document.createElement("table");
-    table.style.width = "100%"; table.style.borderCollapse = "collapse";
-    const thead = document.createElement("thead");
-    const headRow = document.createElement("tr");
-    ["#", "Speelster", "Ranking", "Status"].forEach(label => {
-      const th = element("th", "", label);
-      th.style.textAlign = "left"; th.style.padding = "8px 5px"; th.style.borderBottom = "1px solid var(--border)";
-      headRow.appendChild(th);
-    });
-    thead.appendChild(headRow); table.appendChild(thead);
-    const tbody = document.createElement("tbody");
-    sorted.forEach((row, index) => {
-      const tr = document.createElement("tr");
-      [String(index + 1), row.name, row.ranking ? "#" + row.ranking : "Niet gevonden", row.status].forEach(value => {
-        const td = element("td", "", value);
-        td.style.padding = "8px 5px"; td.style.borderBottom = "1px solid var(--border)";
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    const wrapper = element("div", "");
-    wrapper.style.overflowX = "auto"; wrapper.appendChild(table); output.appendChild(wrapper);
-    if (announce) {
-      $("entryStatus").className = "status success";
-      $("entryStatus").textContent = "Lijst verwerkt: " + rows.length + " speelsters met een leesbare ranking. Bewaard op dit toestel.";
-    }
-  }
-
-  function analyzeEntries() {
-    const key = selectedTournamentKey();
-    if (!key) {
-      $("entryStatus").className = "status error";
-      $("entryStatus").textContent = "Selecteer eerst een toernooi.";
-      return;
-    }
-    const raw = $("entryPaste").value.trim();
-    if (!raw) {
-      $("entryStatus").className = "status error";
-      $("entryStatus").textContent = "Plak eerst een officiële inschrijvingslijst.";
-      return;
-    }
-    const saved = { raw, sourceUrl: $("entrySourceUrl").value.trim(), asOf: $("entryAsOf").value, importedAt: new Date().toISOString() };
-    entryLists[key] = saved;
-    persistEntryLists();
-    renderEntryAnalysis(saved, false);
-    refreshWtaRankings(saved, true);
-  }
-
-  function loadProfile() {
-    try {
-      const profile = JSON.parse(localStorage.getItem("courtiq-profile") || "{}");
-      ["playerName", "ranking", "region", "preferredSurface", "level"]
-        .forEach(id => {
-          if (profile[id] !== undefined) $(id).value = profile[id];
-        });
-    } catch {}
-  }
+  // Entry-list import and analysis removed; rankings are managed in the player profile.
 
   let profileRankingLookupBusy = false;
   let lastProfileRankingName = "";
@@ -919,69 +730,6 @@
 
       card.appendChild(element("p", "", "📅 " + formatDate(item)));
 
-      const entryKey = String(item.id != null ? item.id : (String(item.name) + "|" + String(item.date || "")));
-      const entryDetails = document.createElement("details");
-      entryDetails.style.marginTop = "12px";
-      const entrySummary = element("summary", "", "Bekijk inschrijvingslijst / speelsters");
-      entrySummary.style.cursor = "pointer";
-      entrySummary.style.color = "var(--green)";
-      entrySummary.style.fontWeight = "750";
-      entrySummary.style.padding = "8px 0";
-      entryDetails.appendChild(entrySummary);
-      const savedEntry = entryLists[entryKey];
-      if (savedEntry && savedEntry.raw) {
-        try {
-          const matches = new Map((savedEntry.wtaMatches || []).map(match => [normalizeRankingName(match.requestedName), match]));
-          const players = parseEntryRows(savedEntry.raw).map(player => {
-            const match = matches.get(normalizeRankingName(player.name));
-            return { ...player, ranking: match && match.found ? match.player.ranking : player.ranking };
-          }).slice().sort((a, b) => (a.ranking || Number.MAX_SAFE_INTEGER) - (b.ranking || Number.MAX_SAFE_INTEGER));
-          entryDetails.appendChild(element("p", "muted", players.length + " speelsters · lijstpeildatum: " + (savedEntry.asOf || "niet opgegeven")));
-          const playerTable = document.createElement("table");
-          playerTable.style.width = "100%";
-          playerTable.style.borderCollapse = "collapse";
-          const head = document.createElement("tr");
-          ["#", "Speelster", "Ranking", "Status"].forEach(label => {
-            const th = element("th", "", label);
-            th.style.textAlign = "left"; th.style.padding = "7px 4px"; th.style.borderBottom = "1px solid var(--border)";
-            head.appendChild(th);
-          });
-          playerTable.appendChild(head);
-          players.forEach((player, index) => {
-            const tr = document.createElement("tr");
-            [String(index + 1), player.name, player.ranking ? "#" + player.ranking : "Niet gevonden", player.status].forEach(value => {
-              const td = element("td", "", value);
-              td.style.padding = "7px 4px"; td.style.borderBottom = "1px solid var(--border)";
-              tr.appendChild(td);
-            });
-            playerTable.appendChild(tr);
-          });
-          const tableWrap = element("div", "");
-          tableWrap.style.overflowX = "auto";
-          tableWrap.appendChild(playerTable);
-          entryDetails.appendChild(tableWrap);
-          if (savedEntry.sourceUrl && /^https?:\/\//i.test(savedEntry.sourceUrl)) {
-            const official = element("a", "", "Officiële bron openen ↗");
-            official.href = savedEntry.sourceUrl; official.target = "_blank"; official.rel = "noopener noreferrer";
-            official.style.display = "inline-block"; official.style.marginTop = "10px";
-            entryDetails.appendChild(official);
-          }
-        } catch (error) {
-          entryDetails.appendChild(element("p", "status error", "De opgeslagen inschrijvingslijst kon niet worden gelezen: " + error.message));
-        }
-      } else {
-        entryDetails.appendChild(element("p", "muted", "Er is nog geen inschrijvingslijst geïmporteerd voor dit toernooi."));
-        const importButton = element("button", "secondary", "Importeer inschrijvingslijst");
-        importButton.style.marginTop = "6px";
-        importButton.addEventListener("click", () => {
-          const select = $("entryTournament");
-          if ([...select.options].some(option => option.value === entryKey)) select.value = entryKey;
-          loadSelectedEntryList();
-          $("entryAnalysis").scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-        entryDetails.appendChild(importButton);
-      }
-      card.appendChild(entryDetails);
 
       const location = [item.country, item.countryCode].filter(Boolean).join(" · ");
       if (location) card.appendChild(element("p", "", "📍 " + location));
@@ -1073,13 +821,6 @@
       $("dataStatus").textContent = "Nog geen gegevens geladen. Tik op Vernieuwen.";
     }
   }
-
-  $("entryTournament").addEventListener("change", loadSelectedEntryList);
-  $("analyzeEntries").addEventListener("click", analyzeEntries);
-  $("ranking").addEventListener("change", () => {
-    const saved = entryLists[selectedTournamentKey()];
-    if (saved && saved.raw) renderEntryAnalysis(saved, false);
-  });
 
   $("saveProfile").addEventListener("click", saveProfile);
   $("playerName").addEventListener("change", lookupProfileWtaRanking);
